@@ -1,252 +1,224 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Map, Wine, GlassWater, Camera, Upload, Loader, X, Utensils, Database, RefreshCw, Plus, Minus, BarChart3, Pencil, Trash2, Save, User, LogOut, Lightbulb, Sparkles, Fish, Beef, Calendar, AlertCircle } from 'lucide-react';
+import { Search, Calculator, Map, Wine, GlassWater, Camera, Upload, Loader, X, Utensils, Database, RefreshCw, Plus, Minus, BarChart3, Pencil, Trash2, Save, User, LogOut, Lightbulb, Sparkles, Fish, Beef, Calendar, AlertCircle, BookOpen, Thermometer, Droplets, Wheat, Sprout, FlaskConical } from 'lucide-react';
 import { db, storage } from './firebase';
 import { doc, setDoc, onSnapshot, collection, updateDoc, arrayUnion, addDoc, deleteDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // ==========================================
-// 1. Logic & Constants (教育用コンテンツ・定数)
+// 1. Logic & Knowledge Base (知識の源泉)
 // ==========================================
 
-// ==========================================
-// 1. Logic & Constants (教育用コンテンツ・定数)
-// ==========================================
+// ★ コラム（豆知識）マスターデータベース（増量版）
+const TRIVIA_MASTER_DB = [
+  // --- 特定名称・スペック ---
+  {
+    id: 'daiginjo',
+    condition: (item) => item.tags?.some(t => t.includes('大吟醸')) || item.category_rank.includes('Matsu'),
+    icon: <Sparkles size={14}/>,
+    title: '大吟醸の「50%」の意味',
+    text: 'お米を半分以上削り、中心のデンプン質だけを贅沢に使います。雑味の元になる外側のタンパク質を削ぎ落とし、低温でじっくり発酵させることで、果実のような華やかな香りが生まれます。'
+  },
+  {
+    id: 'junmai',
+    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('純米')) || !item.tags?.some(t => t.includes('アル添'))),
+    icon: <Wheat size={14}/>,
+    title: '「純米」はお米のジュース？',
+    text: '醸造アルコールを一切添加せず、お米と水と麹だけで造ったお酒です。炊き立てのご飯のような穀物の香りや、お米本来のふくよかな旨味をダイレクトに感じられます。'
+  },
+  {
+    id: 'honjozo',
+    condition: (item) => item.tags?.some(t => t.includes('本醸造')) || item.tags?.some(t => t.includes('アル添')),
+    icon: <FlaskConical size={14}/>,
+    title: '「アル添」は悪じゃない！',
+    text: '醸造アルコールを添加するのは、かさ増しのためではありません。アルコールを加えることで香りを引き出し、後味をスパッと切る「キレ」を生む高等テクニックなのです。辛口好きには本醸造がおすすめ。'
+  },
+  {
+    id: 'genshu',
+    condition: (item) => item.tags?.some(t => t.includes('原酒')),
+    icon: <Droplets size={14}/>,
+    title: '「原酒」＝ロック推奨？',
+    text: '通常は水を加えて度数を調整しますが、これは搾ったままの状態。アルコール度数が高く濃厚なため、氷を浮かべて「オンザロック」にすると、溶けゆく味わいの変化を楽しめます。'
+  },
+  
+  // --- 酒米・水・酵母（マニアック編） ---
+  {
+    id: 'rice_yamada',
+    condition: (item) => item.tags?.some(t => t.includes('山田錦')) || (item.category_rank.includes('Matsu') && item.type === 'Sake'),
+    icon: <Sprout size={14}/>,
+    title: '酒米の王様「山田錦」',
+    text: '酒米の最高峰。粒が大きく、心白（中心のデンプン）が大きいため、綺麗で雑味のない、品格のある味わいに仕上がります。「迷ったら山田錦」と言われるほどの王道です。'
+  },
+  {
+    id: 'rice_omachi',
+    condition: (item) => item.tags?.some(t => t.includes('雄町')),
+    icon: <Sprout size={14}/>,
+    title: 'オマチストを魅了する「雄町」',
+    text: '栽培が難しく一度は幻となったお米。山田錦のような優等生ではなく、野性味あふれる複雑で太い旨味が特徴です。この独特なコクにハマる「オマチスト」と呼ばれるファンが多数存在します。'
+  },
+  {
+    id: 'rice_gohyakumangoku',
+    condition: (item) => item.tags?.some(t => t.includes('五百万石')) || (item.axisX > 50 && item.axisY < 50),
+    icon: <Sprout size={14}/>,
+    title: 'スッキリ淡麗「五百万石」',
+    text: '新潟県などを中心に栽培される、淡麗辛口の代名詞的なお米。山田錦や雄町に比べて、スッキリと軽快で、食事の邪魔をしない綺麗なお酒になりやすいのが特徴です。'
+  },
+  {
+    id: 'water_hard',
+    condition: (item) => item.tags?.some(t => t.includes('灘')) || (item.axisX > 60 && item.type === 'Sake'),
+    icon: <Droplets size={14}/>,
+    title: '硬水が生む「男酒」',
+    text: 'ミネラル分を多く含む「硬水」で仕込むと、酵母の活動が活発になり、発酵が力強く進みます。その結果、酸が効いたキリッと辛口の、いわゆる「男酒」に仕上がります。'
+  },
 
-// ★季節判定ロジック（厳選フィルター版）
+  // --- 製法・造り ---
+  {
+    id: 'yamahai_kimoto',
+    condition: (item) => item.tags?.some(t => t.includes('山廃')) || item.tags?.some(t => t.includes('生酛')),
+    icon: <Database size={14}/>,
+    title: '「山廃・生酛」の乳酸菌パワー',
+    text: '人工的な乳酸を添加せず、蔵に住み着く天然の乳酸菌を取り込んで発酵させる伝統製法。時間がかかりますが、ヨーグルトのような酸味と、腰の強い濃厚な旨味が生まれ、お燗にすると化けます。'
+  },
+  {
+    id: 'origarami',
+    condition: (item) => item.tags?.some(t => t.includes('おりがらみ')) || item.tags?.some(t => t.includes('にごり')) || item.tags?.some(t => t.includes('かすみ')),
+    icon: <Droplets size={14}/>,
+    title: '「おりがらみ」の愉しみ',
+    text: '底に沈殿している白い粉は「おり（澱）」といって、お米や酵母の細かい破片です。これを混ぜることで、シルキーな口当たりとお米の甘みがプラスされます。最初は澄んだ上澄みだけ、後半は混ぜて濃厚に、と二度楽しめます。'
+  },
+  {
+    id: 'namazake',
+    condition: (item) => item.tags?.some(t => t.includes('生酒')) || item.tags?.some(t => t.includes('新酒')),
+    icon: <Sparkles size={14}/>,
+    title: '火入れなしのフレッシュ感',
+    text: '通常は2回行う加熱殺菌（火入れ）を一切しない「すっぴん」のお酒。酵母が生み出した微炭酸（ガス感）や、青リンゴのようなフレッシュな香りがそのまま生きています。要冷蔵のデリケートな味です。'
+  },
+
+  // --- 味わいの指標 ---
+  {
+    id: 'nihonshudo_plus',
+    condition: (item) => item.axisX > 70, // かなり辛口
+    icon: <Wine size={14}/>,
+    title: '日本酒度「＋」は辛口',
+    text: '「日本酒度」は糖分の多さを示す数値です。プラスになればなるほど糖分が少なく（軽く）、マイナスだと糖分が多い（重い）傾向にあります。このお酒はプラス値が高い、キレキレの辛口タイプです。'
+  },
+  {
+    id: 'acid_high',
+    condition: (item) => item.tags?.some(t => t.includes('酸')) || (item.axisX < 40 && item.axisY < 40),
+    icon: <FlaskConical size={14}/>,
+    title: '日本酒の「酸」は旨味',
+    text: '日本酒における「酸度」は、酸っぱさだけでなく「キレ」や「旨味の輪郭」を作ります。酸度が高いお酒は、白ワインのように肉料理の脂を切ってくれる効果があり、食中酒として優秀です。'
+  },
+
+  // --- ペアリング・楽しみ方 ---
+  {
+    id: 'pair_cheese',
+    condition: (item) => item.tags?.some(t => t.includes('山廃')) || item.tags?.some(t => t.includes('古酒')) || item.axisX < 30,
+    icon: <Utensils size={14}/>,
+    title: '発酵×発酵＝最強',
+    text: '旨味の強い日本酒（山廃や熟成酒）は、同じ発酵食品である「チーズ」と相性抜群です。特にブルーチーズやウォッシュチーズなど、癖のあるチーズを口に含んでこのお酒を飲むと、旨味が爆発します。'
+  },
+  {
+    id: 'pair_soba',
+    condition: (item) => item.axisX > 50 && item.axisY < 50, // 辛口・スッキリ
+    icon: <Utensils size={14}/>,
+    title: '「蕎麦前」の粋',
+    text: '蕎麦の繊細な香りを邪魔しない、スッキリとした辛口酒は「蕎麦屋酒」の王道。わさびや出汁巻き卵をつまみに、ちびちびと飲むのが粋なスタイルです。'
+  },
+  {
+    id: 'vessel_wine',
+    condition: (item) => item.axisY > 60, // 華やか
+    icon: <GlassWater size={14}/>,
+    title: 'ワイングラスの魔法',
+    text: '香り高い吟醸系のお酒は、飲み口の広いワイングラスで飲むと、香りが内側にこもってより華やかに感じられます。逆に、お猪口だとスッキリと感じられます。'
+  },
+  {
+    id: 'kan_nuru',
+    condition: (item) => item.axisX < 50 && item.axisY < 40, // 旨口・穏やか
+    icon: <Thermometer size={14}/>,
+    title: '魔法の温度「ぬる燗」',
+    text: '「人肌（35℃）」〜「ぬる燗（40℃）」に温めると、お米の甘みと旨味がふわっと開き、冷酒の時とは別人のような優しさを見せます。寒い日だけでなく、胃を休めたい時にも最適です。'
+  },
+
+  // --- 焼酎（前回分を維持しつつ強化） ---
+  {
+    id: 'shochu_aroma',
+    condition: (item) => item.category_rank === 'Shochu_Imo',
+    icon: <Sparkles size={14}/>,
+    title: '芋の香りは「花」と同じ？',
+    text: '芋焼酎の香りの正体「モノテルペンアルコール」は、マスカットやバラの香り成分と同じ仲間です。だからこそ、ソーダ割りや水割りにすると、芋臭さではなくフルーティな香りが引き立つのです。'
+  },
+  {
+    id: 'shochu_choco',
+    condition: (item) => item.category_rank === 'Shochu_Mugi',
+    icon: <Utensils size={14}/>,
+    title: '麦焼酎とチョコの関係',
+    text: '大麦を原料とする麦焼酎の香ばしさは、焙煎したカカオやナッツと驚くほど合います。食後にビターチョコレートをかじりながら、麦焼酎のロックを流し込む。大人のデザートタイムです。'
+  },
+  {
+    id: 'shochu_maewari',
+    condition: (item) => item.type === 'Shochu',
+    icon: <Droplets size={14}/>,
+    title: '通の飲み方「前割り」',
+    text: '飲む数日前から水で割って寝かせておく「前割り」。水とアルコールが分子レベルで馴染み、カドが取れて驚くほどまろやかな口当たりになります。九州の居酒屋では定番のおもてなしです。'
+  }
+];
+
+// 商品ごとのコラム抽出ロジック（最大3つ）
+const getTriviaList = (item) => {
+  // 条件に合うものを全て抽出
+  const matches = TRIVIA_MASTER_DB.filter(trivia => trivia.condition(item));
+  // 先頭から3つを返す
+  return matches.slice(0, 3);
+};
+
+// ... (以下、getCurrentSeasonTheme や PROPOSAL_THEMES_SAKE などは前回の修正を維持) ...
+// ※ここから下の getCurrentSeasonTheme 関数などは、直前に提示した「1/3」のコードと同じものを貼り付けてください。
+// ※もし必要であれば、このブロック全体を再掲します。
 const getCurrentSeasonTheme = () => {
   const month = new Date().getMonth() + 1;
-
-  // --- 春 (3, 4, 5月) ---
   if (month >= 3 && month <= 5) {
-    return {
-      id: 'season_spring',
-      label: '春・花見酒',
-      icon: <Calendar size={14} />,
-      color: 'bg-pink-100 text-pink-700 border-pink-200',
-      // 【厳選】「華やか(Y>50)」かつ「甘め(X<50)」の "右上エリア" のみに限定
-      // ※以前より条件を厳しくしました
-      filter: (item) => 
-        item.tags?.some(t => t.includes('花見') || t.includes('春')) || 
-        (item.axisY > 60 && item.axisX < 45),
-      guide: (
-        <>
-          <span className="font-bold block mb-1">🌸 アプローチ：春の陽気に合わせる</span>
-          「春の苦味のある山菜などには、とげのない『優しい甘み』と『華やかな香り』を持つお酒（マップ右上）が相性抜群です」と提案しましょう。
-        </>
-      )
-    };
-  }
-  // --- 夏 (6, 7, 8月) ---
-  else if (month >= 6 && month <= 8) {
-    return {
-      id: 'season_summer',
-      label: '夏・涼み酒',
-      icon: <Calendar size={14} />,
-      color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-      // 【厳選】「かなり辛口(X>70)」または「夏酒タグ」のみに限定
-      // ※中途半端な辛口は除外
-      filter: (item) => 
-        item.tags?.some(t => t.includes('夏')) || 
-        (item.axisX > 70), 
-      guide: (
-        <>
-          <span className="font-bold block mb-1">🎐 アプローチ：清涼感でリフレッシュ</span>
-          「暑い日には、後味がスパッと切れる『超辛口』のお酒（マップ右端）が体に染み渡ります。よく冷やしてどうぞ」と提案しましょう。
-        </>
-      )
-    };
-  }
-  // --- 秋 (9, 10, 11月) ---
-  else if (month >= 9 && month <= 11) {
-    return {
-      id: 'season_autumn',
-      label: '秋・ひやおろし',
-      icon: <Calendar size={14} />,
-      color: 'bg-orange-100 text-orange-700 border-orange-200',
-      // 【厳選】「旨味(X<40)」かつ「穏やか(Y<50)」の "左下ど真ん中" に限定
-      filter: (item) => 
-        item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || 
-        (item.axisX < 40 && item.axisY < 50),
-      guide: (
-        <>
-          <span className="font-bold block mb-1">🍁 アプローチ：食材の濃さに負けない</span>
-          「秋の味覚には、熟成感やお米のコクがある『芳醇・旨口』タイプ（マップ左下）を選ぶと、料理の味が引き立ちます」と提案しましょう。
-        </>
-      )
-    };
-  }
-  // --- 冬 (12, 1, 2月) ---
-  else {
-    return {
-      id: 'season_winter',
-      label: '冬・料理との対比',
-      icon: <Calendar size={14} />,
-      color: 'bg-gray-100 text-gray-700 border-gray-200',
-      
-      // 【厳選】冬のターゲットを絞り込む
-      // 条件1: 「新酒」タグがある（最優先）
-      // 条件2: タグがない場合、「香りが高い(Y>65)」かつ「甘すぎない(X>40)」ものに限定
-      // ※これにより、マップ上部の「大吟醸クラス」や「香り高い吟醸」だけがピンポイントで光ります。
-      // ※「単なる辛口」は除外しました。
-      filter: (item) => 
-        item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || 
-        (item.axisY > 55 && item.axisX > 40),
-      
-      guide: (
-        <>
-          <span className="font-bold block mb-1">⛄️ アプローチ：濃厚な味のリセット</span>
-          「冬の脂が乗った濃厚な料理には、口の中をリセットしてくれる『華やかで香り高い』お酒（マップ上部）が合います。冷酒のフレッシュさで、お鍋などの熱い料理との温度差を楽しむのも粋ですよ」と提案しましょう。
-        </>
-      )
-    };
+    return { id: 'spring', label: '春・花見酒', icon: <Calendar size={14} />, color: 'bg-pink-100 text-pink-700 border-pink-200', filter: (item) => item.tags?.some(t => t.includes('花見') || t.includes('春')) || (item.axisX < 60 && item.axisY > 40), guide: (<><span className="font-bold block mb-1">🌸 アプローチ：春の陽気に合わせる</span>「苦味のある山菜などには、とげのない『優しい甘み』と『華やかな香り』を持つお酒（マップ右上）が相性抜群です」と提案しましょう。</>) };
+  } else if (month >= 6 && month <= 8) {
+    return { id: 'summer', label: '夏・涼み酒', icon: <Calendar size={14} />, color: 'bg-cyan-100 text-cyan-700 border-cyan-200', filter: (item) => item.tags?.some(t => t.includes('夏')) || (item.axisX > 70), guide: (<><span className="font-bold block mb-1">🎐 アプローチ：清涼感でリフレッシュ</span>「暑い日には、後味がスパッと切れる『超辛口』のお酒（マップ右端）が体に染み渡ります。よく冷やしてどうぞ」と提案しましょう。</>) };
+  } else if (month >= 9 && month <= 11) {
+    return { id: 'autumn', label: '秋・ひやおろし', icon: <Calendar size={14} />, color: 'bg-orange-100 text-orange-700 border-orange-200', filter: (item) => item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || (item.axisX < 40 && item.axisY < 50), guide: (<><span className="font-bold block mb-1">🍁 アプローチ：食材の濃さに負けない</span>「秋の味覚には、熟成感やお米のコクがある『芳醇・旨口』タイプ（マップ左下）を選ぶと、料理の味が引き立ちます」と提案しましょう。</>) };
+  } else {
+    return { id: 'winter', label: '冬・料理との対比', icon: <Calendar size={14} />, color: 'bg-gray-100 text-gray-700 border-gray-200', filter: (item) => item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || (item.axisY > 65 && item.axisX > 40), guide: (<><span className="font-bold block mb-1">⛄️ アプローチ：濃厚な味のリセット</span>「冬の脂が乗った濃厚な料理には、口の中をリセットしてくれる『華やかで香り高い』お酒（マップ上部）が合います。冷酒と温かい料理の温度差を楽しむのも粋ですよ」と提案しましょう。</>) };
   }
 };
 
-// ★ 日本酒用の提案テーマ（季節ロジックを組み込み）
 const PROPOSAL_THEMES_SAKE = [
-  // 1つ目は関数を実行して取得（自動で変わる）
   getCurrentSeasonTheme(),
-  {
-    id: 'sashimi',
-    label: '刺身・さっぱり',
-    icon: <Fish size={14} />,
-    color: 'bg-blue-100 text-blue-700 border-blue-200',
-    filter: (item) => item.axisX > 60 || item.axisY < 40,
-    guide: (
-      <>
-        <span className="font-bold block mb-1">🐟 アプローチ：素材を引き立てる</span>
-        白身魚や繊細な出汁の料理には、後味がスパッと切れる「辛口」や「スッキリ系」が合います。口の中をリセットしてくれます。
-      </>
-    )
-  },
-  {
-    id: 'meat',
-    label: '肉・しっかり味',
-    icon: <Beef size={14} />,
-    color: 'bg-orange-100 text-orange-700 border-orange-200',
-    filter: (item) => item.axisX < 40 || (item.axisX < 60 && item.axisY < 40),
-    guide: (
-      <>
-        <span className="font-bold block mb-1">🥩 アプローチ：旨味の相乗効果</span>
-        濃い料理には、負けない「お米の旨味」があるタイプを選びます。「山廃」や「純米酒」など、常温〜ぬる燗で美味しいお酒もおすすめです。
-      </>
-    )
-  },
-  {
-    id: 'starter',
-    label: '乾杯・華やか',
-    icon: <Sparkles size={14} />,
-    color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    filter: (item) => item.axisY > 60,
-    guide: (
-      <>
-        <span className="font-bold block mb-1">🥂 アプローチ：香りで高揚感を</span>
-        最初の一杯は、フルーツのような香りがする「華やか」タイプ（大吟醸など）が喜ばれます。ワイングラスでの提供もおすすめです。
-      </>
-    )
-  }
+  { id: 'sashimi', label: '刺身・さっぱり', icon: <Fish size={14} />, color: 'bg-blue-100 text-blue-700 border-blue-200', filter: (item) => item.axisX > 60 || item.axisY < 40, guide: (<><span className="font-bold block mb-1">🐟 アプローチ：素材を引き立てる</span>白身魚や繊細な出汁の料理には、後味がスパッと切れる「辛口」や「スッキリ系」が合います。口の中をリセットしてくれます。</>) },
+  { id: 'meat', label: '肉・しっかり味', icon: <Beef size={14} />, color: 'bg-orange-100 text-orange-700 border-orange-200', filter: (item) => item.axisX < 40 || (item.axisX < 60 && item.axisY < 40), guide: (<><span className="font-bold block mb-1">🥩 アプローチ：旨味の相乗効果</span>濃い料理には、負けない「お米の旨味」があるタイプを選びます。「山廃」や「純米酒」など、常温〜ぬる燗で美味しいお酒もおすすめです。</>) },
+  { id: 'starter', label: '乾杯・華やか', icon: <Sparkles size={14} />, color: 'bg-yellow-100 text-yellow-700 border-yellow-200', filter: (item) => item.axisY > 60, guide: (<><span className="font-bold block mb-1">🥂 アプローチ：香りで高揚感を</span>最初の一杯は、フルーツのような香りがする「華やか」タイプ（大吟醸など）が喜ばれます。ワイングラスでの提供もおすすめです。</>) }
 ];
 
-// ... (PROPOSAL_THEMES_SHOCHU はそのまま) ...
-
-// ★ 焼酎用の提案テーマ（新規追加）
 const PROPOSAL_THEMES_SHOCHU = [
-  {
-    id: 'soda',
-    label: 'ソーダ割り・爽快',
-    icon: <GlassWater size={14} />, // 本当は泡アイコン等が良いですが既存のものを流用
-    color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    // ロジック: スッキリ系(Y<40) または 麦焼酎
-    filter: (item) => item.axisY < 50 || item.category_rank === 'Shochu_Mugi',
-    guide: (
-      <>
-        <span className="font-bold block mb-1">🫧 アプローチ：揚げ物・脂と合わせる</span>
-        「唐揚げや脂の乗った料理には、炭酸で割った『焼酎ハイボール』が最高に合います」と提案しましょう。麦焼酎などは特に相性が良いです。
-      </>
-    )
-  },
-  {
-    id: 'rock',
-    label: 'ロック・素材感',
-    icon: <Database size={14} />, // 氷のイメージで代用
-    color: 'bg-purple-100 text-purple-700 border-purple-200',
-    // ロジック: 芳醇(X<40) または 芋焼酎
-    filter: (item) => item.axisX < 50 || item.category_rank === 'Shochu_Imo',
-    guide: (
-      <>
-        <span className="font-bold block mb-1">🧊 アプローチ：香りをゆっくり楽しむ</span>
-        「素材の香りをダイレクトに楽しむならロックがおすすめです」と伝えます。特に芋焼酎は、氷が溶けるごとの味の変化も楽しめます。
-      </>
-    )
-  },
-  {
-    id: 'warm',
-    label: 'お湯割り・食中',
-    icon: <Utensils size={14} />, // 湯気のイメージで代用
-    color: 'bg-orange-100 text-orange-700 border-orange-200',
-    // ロジック: 芋焼酎 かつ 芳醇(X<60)
-    filter: (item) => item.category_rank === 'Shochu_Imo',
-    guide: (
-      <>
-        <span className="font-bold block mb-1">♨️ アプローチ：甘みを引き出す</span>
-        「お湯割りにすると、芋の甘みと香りが一気に広がります。和食や煮込み料理には、ぬるめのお湯割りが一番の相棒です」と提案します。
-      </>
-    )
-  },
+  { id: 'soda', label: 'ソーダ割り・爽快', icon: <GlassWater size={14} />, color: 'bg-cyan-100 text-cyan-700 border-cyan-200', filter: (item) => item.axisY < 50 || item.category_rank === 'Shochu_Mugi', guide: (<><span className="font-bold block mb-1">🫧 アプローチ：揚げ物・脂と合わせる</span>「唐揚げや脂の乗った料理には、炭酸で割った『焼酎ハイボール』が最高に合います」と提案しましょう。麦焼酎などは特に相性が良いです。</>) },
+  { id: 'rock', label: 'ロック・素材感', icon: <Database size={14} />, color: 'bg-purple-100 text-purple-700 border-purple-200', filter: (item) => item.axisX < 50 || item.category_rank === 'Shochu_Imo', guide: (<><span className="font-bold block mb-1">🧊 アプローチ：香りをゆっくり楽しむ</span>「素材の香りをダイレクトに楽しむならロックがおすすめです」と伝えます。特に芋焼酎は、氷が溶けるごとの味の変化も楽しめます。</>) },
+  { id: 'warm', label: 'お湯割り・食中', icon: <Utensils size={14} />, color: 'bg-orange-100 text-orange-700 border-orange-200', filter: (item) => item.category_rank === 'Shochu_Imo', guide: (<><span className="font-bold block mb-1">♨️ アプローチ：甘みを引き出す</span>「お湯割りにすると、芋の甘みと香りが一気に広がります。和食や煮込み料理には、ぬるめのお湯割りが一番の相棒です」と提案します。</>) },
 ];
 
-// 履歴分析ロジック（エラーガード強化版）
 const analyzeHistory = (history = []) => {
-  if (!Array.isArray(history) || history.length === 0) {
-    return { lastOrder: '記録なし', total: 0, cycle: '---', monthly: [] };
-  }
-  
-  // 有効な日付のみフィルタリング
-  const validDates = history
-    .map(d => new Date(d))
-    .filter(d => !isNaN(d.getTime()))
-    .sort((a, b) => a - b);
-
+  if (!Array.isArray(history) || history.length === 0) return { lastOrder: '記録なし', total: 0, cycle: '---', monthly: [] };
+  const validDates = history.map(d => new Date(d)).filter(d => !isNaN(d.getTime())).sort((a, b) => a - b);
   if (validDates.length === 0) return { lastOrder: '記録なし', total: 0, cycle: '---', monthly: [] };
-
   const lastOrder = validDates[validDates.length - 1].toLocaleDateString('ja-JP');
-  
   let cycle = 'データ不足';
   if (validDates.length > 1) {
     const diffTime = Math.abs(validDates[validDates.length - 1] - validDates[0]);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    // 0除算防止
-    const intervalCount = Math.max(1, validDates.length - 1);
-    cycle = Math.round(diffDays / intervalCount) + '日';
+    cycle = Math.round(diffDays / Math.max(1, validDates.length - 1)) + '日';
   }
-
-  // 月別集計
-  const monthlyCounts = {};
-  const months = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    monthlyCounts[key] = 0;
-    months.push({ key, label: `${d.getMonth() + 1}月` });
-  }
-
-  validDates.forEach(date => {
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    if (monthlyCounts[key] !== undefined) monthlyCounts[key]++;
-  });
-
+  const monthlyCounts = {}; const months = [];
+  for (let i = 5; i >= 0; i--) { const d = new Date(); d.setMonth(d.getMonth() - i); const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; monthlyCounts[key] = 0; months.push({ key, label: `${d.getMonth() + 1}月` }); }
+  validDates.forEach(date => { const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; if (monthlyCounts[key] !== undefined) monthlyCounts[key]++; });
   return { lastOrder, total: history.length, cycle, monthly: months.map(m => ({ label: m.label, count: monthlyCounts[m.key] })) };
 };
 
 const getRankColor = (rank) => {
-  const colors = {
-    'Matsu': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    'Take': 'bg-green-100 text-green-800 border-green-200',
-    'Ume': 'bg-blue-100 text-blue-800 border-blue-200',
-    'Shochu_Imo': 'bg-purple-100 text-purple-800 border-purple-200',
-    'Shochu_Mugi': 'bg-amber-100 text-amber-800 border-amber-200',
-  };
+  const colors = { 'Matsu': 'bg-yellow-100 text-yellow-800 border-yellow-200', 'Take': 'bg-green-100 text-green-800 border-green-200', 'Ume': 'bg-blue-100 text-blue-800 border-blue-200', 'Shochu_Imo': 'bg-purple-100 text-purple-800 border-purple-200', 'Shochu_Mugi': 'bg-amber-100 text-amber-800 border-amber-200', };
   return colors[rank] || 'bg-gray-100 text-gray-800 border-gray-200';
 };
 
@@ -257,91 +229,39 @@ const getRankColor = (rank) => {
 const TabNav = ({ activeTab, setActiveTab, isSommelierMode }) => (
   <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm overflow-x-auto no-scrollbar">
     <button onClick={() => setActiveTab('sake')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'sake' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500 hover:bg-gray-50'}`}><Wine size={18} /> 日本酒</button>
-    <button onClick={() => setActiveTab('shochu')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'shochu' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:bg-gray-50'}`}><GlassWater size={18} /> 焼酎</button>
+    <button onClick={() => setActiveTab('shochu')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'shochu' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:bg-gray-50'}`}><GlassWater size={18} /> 焼酎、他</button>
     <button onClick={() => setActiveTab('map')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'map' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500 hover:bg-gray-50'}`}><Map size={18} /> マップ</button>
-    {!isSommelierMode && (
-      <>
-        <button onClick={() => setActiveTab('stock')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'stock' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500 hover:bg-gray-50'}`}><Database size={18} /> 資産</button>
-        <button onClick={() => setActiveTab('calc')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'calc' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500 hover:bg-gray-50'}`}><Calculator size={18} /> 計算</button>
-      </>
-    )}
+    {!isSommelierMode && (<>
+      <button onClick={() => setActiveTab('stock')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'stock' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500 hover:bg-gray-50'}`}><Database size={18} /> 資産</button>
+      <button onClick={() => setActiveTab('calc')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium transition-colors ${activeTab === 'calc' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500 hover:bg-gray-50'}`}><Calculator size={18} /> 計算</button>
+    </>)}
   </div>
 );
 
-// ★ StockView: 納品日選択機能 ＋ エラー対策版
 const StockView = ({ data }) => {
   const totalAssetValue = data.reduce((sum, item) => sum + (item.stock_bottles || 0) * item.price_cost + Math.round(item.price_cost * ((item.stock_level ?? 100) / 100)), 0);
-  
-  // 納品モーダル用のState
   const [restockModalItem, setRestockModalItem] = useState(null);
   const [restockDate, setRestockDate] = useState('');
 
   const updateStock = async (id, field, val) => {
-    // 【エラー対策】IDがない場合は処理を中断
     if (!id) { console.error("ID不正", { id, field, val }); return; }
-
-    try { await updateDoc(doc(db, "sakeList", id), { [field]: val, stock_updated_at: new Date().toISOString() }); } 
-    catch (e) { console.error("Update failed", e); alert("更新失敗"); }
+    try { await updateDoc(doc(db, "sakeList", id), { [field]: val, stock_updated_at: new Date().toISOString() }); } catch (e) { console.error("Update failed", e); alert("更新失敗"); }
   };
-  
-  // 納品ボタンを押した時：モーダルを開く
-  const openRestockModal = (item) => {
-    setRestockModalItem(item);
-    setRestockDate(new Date().toISOString().split('T')[0]);
-  };
-
-  // 納品確定処理
+  const openRestockModal = (item) => { setRestockModalItem(item); setRestockDate(new Date().toISOString().split('T')[0]); };
   const handleRestockSubmit = async () => {
     if (!restockModalItem || !restockDate) return;
     try {
-      const recordDate = new Date(restockDate);
-      recordDate.setHours(12, 0, 0);
-
-      await updateDoc(doc(db, "sakeList", restockModalItem.id), { 
-        stock_bottles: (restockModalItem.stock_bottles || 0) + 1, 
-        stock_updated_at: new Date().toISOString(), 
-        order_history: arrayUnion(recordDate.toISOString()) 
-      });
-      setRestockModalItem(null); 
+      const recordDate = new Date(restockDate); recordDate.setHours(12, 0, 0);
+      await updateDoc(doc(db, "sakeList", restockModalItem.id), { stock_bottles: (restockModalItem.stock_bottles || 0) + 1, stock_updated_at: new Date().toISOString(), order_history: arrayUnion(recordDate.toISOString()) });
+      setRestockModalItem(null);
     } catch (e) { alert("納品処理に失敗しました"); }
   };
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen pb-24 animate-in fade-in duration-500">
-      <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-xl p-6 text-white shadow-lg mb-6">
-        <p className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">現在の棚卸し資産総額</p>
-        <p className="text-3xl font-bold">¥ {totalAssetValue.toLocaleString()}</p>
-        <div className="text-right text-[10px] text-gray-400 mt-2">※未開封ボトル ＋ 開封済み残量(％)の合算</div>
-      </div>
-      <div className="space-y-4">
-        {data.map(item => (
-          <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-            <div className="flex justify-between items-start mb-4">
-              <div><h3 className="font-bold text-gray-800">{item.name}</h3><span className="text-xs text-gray-500">原価: ¥{item.price_cost.toLocaleString()}</span></div>
-              <button onClick={() => openRestockModal(item)} className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"><RefreshCw size={16} /><span className="text-[10px] font-bold mt-1">納品 (+1)</span></button>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg"><span className="text-xs font-bold text-gray-600">未開封在庫</span><div className="flex items-center gap-3"><button onClick={() => updateStock(item.id, 'stock_bottles', Math.max(0, (item.stock_bottles||0)-1))} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm active:bg-gray-200"><Minus size={16}/></button><span className="font-bold text-lg w-6 text-center">{item.stock_bottles || 0}</span><button onClick={() => updateStock(item.id, 'stock_bottles', (item.stock_bottles||0)+1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm active:bg-gray-200"><Plus size={16}/></button></div></div>
-              <div><div className="flex justify-between text-xs mb-1 px-1"><span className="text-gray-500">開封済み残量</span><span className={`font-bold ${item.stock_level < 20 ? 'text-red-600' : 'text-blue-600'}`}>{item.stock_level ?? 100}%</span></div><input type="range" min="0" max="100" step="10" value={item.stock_level ?? 100} onChange={(e) => updateStock(item.id, 'stock_level', Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" /></div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {restockModalItem && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setRestockModalItem(null)}>
-          <div className="bg-white w-full max-w-xs rounded-xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="font-bold text-lg mb-2 text-gray-800">納品登録</h3>
-            <p className="text-sm text-gray-500 mb-4">{restockModalItem.name} を1本追加します。<br/>いつ届きましたか？</p>
-            <label className="block text-xs font-bold text-gray-500 mb-1">納品日</label>
-            <input type="date" className="w-full border border-gray-300 rounded-lg p-3 mb-6 font-bold text-gray-700 bg-gray-50 focus:ring-2 focus:ring-green-500 outline-none" value={restockDate} onChange={(e) => setRestockDate(e.target.value)} />
-            <div className="flex gap-2">
-              <button onClick={() => setRestockModalItem(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-lg font-bold text-sm">キャンセル</button>
-              <button onClick={handleRestockSubmit} className="flex-[2] py-3 bg-green-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-green-700">確定 (+1本)</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-xl p-6 text-white shadow-lg mb-6"><p className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">現在の棚卸し資産総額</p><p className="text-3xl font-bold">¥ {totalAssetValue.toLocaleString()}</p><div className="text-right text-[10px] text-gray-400 mt-2">※未開封ボトル ＋ 開封済み残量(％)の合算</div></div>
+      <div className="space-y-4">{data.map(item => (<div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"><div className="flex justify-between items-start mb-4"><div><h3 className="font-bold text-gray-800">{item.name}</h3><span className="text-xs text-gray-500">原価: ¥{item.price_cost.toLocaleString()}</span></div><button onClick={() => openRestockModal(item)} className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"><RefreshCw size={16} /><span className="text-[10px] font-bold mt-1">納品 (+1)</span></button></div><div className="space-y-4"><div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg"><span className="text-xs font-bold text-gray-600">未開封在庫</span><div className="flex items-center gap-3"><button onClick={() => updateStock(item.id, 'stock_bottles', Math.max(0, (item.stock_bottles||0)-1))} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm active:bg-gray-200"><Minus size={16}/></button><span className="font-bold text-lg w-6 text-center">{item.stock_bottles || 0}</span><button onClick={() => updateStock(item.id, 'stock_bottles', (item.stock_bottles||0)+1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm active:bg-gray-200"><Plus size={16}/></button></div></div><div><div className="flex justify-between text-xs mb-1 px-1"><span className="text-gray-500">開封済み残量</span><span className={`font-bold ${item.stock_level < 20 ? 'text-red-600' : 'text-blue-600'}`}>{item.stock_level ?? 100}%</span></div><input type="range" min="0" max="100" step="10" value={item.stock_level ?? 100} onChange={(e) => updateStock(item.id, 'stock_level', Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" /></div></div></div>))}</div>
+      {restockModalItem && (<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setRestockModalItem(null)}><div className="bg-white w-full max-w-xs rounded-xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}><h3 className="font-bold text-lg mb-2 text-gray-800">納品登録</h3><p className="text-sm text-gray-500 mb-4">{restockModalItem.name} を1本追加します。<br/>いつ届きましたか？</p><label className="block text-xs font-bold text-gray-500 mb-1">納品日</label><input type="date" className="w-full border border-gray-300 rounded-lg p-3 mb-6 font-bold text-gray-700 bg-gray-50 focus:ring-2 focus:ring-green-500 outline-none" value={restockDate} onChange={(e) => setRestockDate(e.target.value)} /><div className="flex gap-2"><button onClick={() => setRestockModalItem(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-lg font-bold text-sm">キャンセル</button><button onClick={handleRestockSubmit} className="flex-[2] py-3 bg-green-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-green-700">確定 (+1本)</button></div></div></div>)}
     </div>
   );
 };
@@ -350,14 +270,10 @@ const CalculatorView = ({ data }) => {
   const [selectedId, setSelectedId] = useState(data[0]?.id);
   const [targetCostRate, setTargetCostRate] = useState(30);
   const [servingSize, setServingSize] = useState(90);
-  
-  // データロード前ガード
   if (!data || data.length === 0) return <div className="p-10 text-center text-gray-500">データ読込中...</div>;
-
   const selectedItem = data.find(i => i.id === selectedId) || data[0];
   const mlCost = selectedItem.price_cost / selectedItem.capacity_ml;
   const idealPrice = Math.round(Math.round(mlCost * servingSize) / (targetCostRate / 100));
-
   return (
     <div className="p-4 bg-gray-50 min-h-screen animate-in fade-in duration-500">
        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6"><h2 className="text-gray-500 text-sm font-bold mb-4 uppercase tracking-wider">Parameters</h2><div className="mb-4"><label className="block text-sm font-medium text-gray-700 mb-1">対象商品</label><select className="w-full p-2 border border-gray-300 rounded-md bg-white" value={selectedItem.id} onChange={(e) => setSelectedId(e.target.value)}>{data.map(item => (<option key={item.id} value={item.id}>{item.name}</option>))}</select></div><div className="mb-6"><div className="flex justify-between mb-1"><label className="text-sm font-medium text-gray-700">提供量</label><span className="text-sm font-bold text-blue-600">{servingSize} ml</span></div><input type="range" min="30" max="360" step="10" value={servingSize} onChange={(e) => setServingSize(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div><div className="mb-2"><div className="flex justify-between mb-1"><label className="text-sm font-medium text-gray-700">目標原価率</label><span className="text-sm font-bold text-green-600">{targetCostRate}%</span></div><input type="range" min="10" max="100" step="5" value={targetCostRate} onChange={(e) => setTargetCostRate(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div></div>
@@ -370,18 +286,13 @@ const CalculatorView = ({ data }) => {
 const MapView = ({ data, cloudImages, onSelect }) => {
   const [mapType, setMapType] = useState('Sake'); 
   const [activeThemeId, setActiveThemeId] = useState(null);
-
-  // ★ マップタイプに応じて、使うテーマセットを切り替える
   const currentThemes = mapType === 'Sake' ? PROPOSAL_THEMES_SAKE : PROPOSAL_THEMES_SHOCHU;
   const activeTheme = currentThemes.find(t => t.id === activeThemeId);
-
-  // マップタイプが変わったら選択中のテーマをリセット
   useEffect(() => { setActiveThemeId(null); }, [mapType]);
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen flex flex-col pb-32 animate-in fade-in duration-500">
        <div className="flex justify-center mb-4"><div className="bg-gray-200 p-1 rounded-lg flex"><button onClick={() => setMapType('Sake')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>日本酒</button><button onClick={() => setMapType('Shochu')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>焼酎</button></div></div>
-       
        <div className="bg-white rounded-xl shadow-sm border border-gray-200 relative overflow-hidden p-4 min-h-[400px] mb-4">
         <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">華やか・香り高</div>
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">穏やか・スッキリ</div>
@@ -402,14 +313,10 @@ const MapView = ({ data, cloudImages, onSelect }) => {
           );
         })}
        </div>
-
        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
          <div className="bg-gray-50 px-4 py-2 flex items-center gap-2 border-b border-gray-100"><Lightbulb className="text-yellow-500" size={16} /><span className="text-xs font-bold text-gray-600">提案の切り口（スタッフ用ガイド）</span></div>
          <div className="p-3 flex gap-2 overflow-x-auto pb-4 no-scrollbar">
-           {/* currentThemesを使ってマップ表示 */}
-           {currentThemes.map(theme => (
-             <button key={theme.id} onClick={() => setActiveThemeId(activeThemeId === theme.id ? null : theme.id)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${activeThemeId === theme.id ? theme.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{theme.icon}{theme.label}</button>
-           ))}
+           {currentThemes.map(theme => (<button key={theme.id} onClick={() => setActiveThemeId(activeThemeId === theme.id ? null : theme.id)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${activeThemeId === theme.id ? theme.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{theme.icon}{theme.label}</button>))}
          </div>
          {activeTheme && (<div className={`mx-3 mb-3 p-3 rounded-lg text-xs leading-relaxed animate-in slide-in-from-top-2 duration-300 ${activeTheme.color.replace('text-', 'bg-').replace('border-', '').split(' ')[0]} bg-opacity-20`}>{activeTheme.guide}</div>)}
        </div>
@@ -420,11 +327,28 @@ const MapView = ({ data, cloudImages, onSelect }) => {
 // 3. Main Views & Application Container
 // ==========================================
 
-const MenuView = ({ data, onSelect, cloudImages, placeholder, onAdd, isSommelierMode }) => {
+const MenuView = ({ data, onSelect, cloudImages, placeholder, onAdd, isSommelierMode, activeTab }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // ★ フィルタリングとソート（並び替え）ロジック
   const filteredData = useMemo(() => {
-    return data.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.kana.includes(searchTerm) || item.tags.some(tag => tag.includes(searchTerm)));
-  }, [data, searchTerm]);
+    // 1. テキスト検索で絞り込み
+    const searched = data.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.kana.includes(searchTerm) || item.tags.some(tag => tag.includes(searchTerm)));
+    
+    // 2. タブごとの特別な並び替え
+    if (activeTab === 'shochu') {
+      // 焼酎タブの場合: まず「Shochu」タイプを表示し、その後に「その他（Liqueurなど）」を表示
+      return searched.sort((a, b) => {
+        const isAShochu = a.type === 'Shochu';
+        const isBShochu = b.type === 'Shochu';
+        if (isAShochu && !isBShochu) return -1; // aが焼酎なら上
+        if (!isAShochu && isBShochu) return 1;  // bが焼酎なら上
+        return 0; // 同じならそのまま
+      });
+    }
+    
+    return searched;
+  }, [data, searchTerm, activeTab]);
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen pb-24 relative animate-in fade-in duration-500">
@@ -527,6 +451,9 @@ export default function SakeManagerApp() {
   };
 
   const stats = modalItem ? analyzeHistory(modalItem.order_history) : null;
+  
+  // ★ モーダルを開いた時に、関連するコラムを最大3つ取得
+  const triviaList = modalItem ? getTriviaList(modalItem) : [];
 
   return (
     <div className="w-full md:max-w-4xl mx-auto bg-white min-h-screen shadow-2xl overflow-hidden relative font-sans">
@@ -537,18 +464,20 @@ export default function SakeManagerApp() {
       <TabNav activeTab={activeTab} setActiveTab={setActiveTab} isSommelierMode={isSommelierMode} />
       
       <div className="h-full">
-        {activeTab === 'sake' && <MenuView data={sakeList.filter(d => d.type === 'Sake' || d.type === 'Liqueur')} onSelect={handleOpenDetail} onAdd={handleAddNew} cloudImages={cloudImages} placeholder="日本酒・果実酒..." isSommelierMode={isSommelierMode} />}
-        {activeTab === 'shochu' && <MenuView data={sakeList.filter(d => d.type === 'Shochu')} onSelect={handleOpenDetail} onAdd={handleAddNew} cloudImages={cloudImages} placeholder="焼酎..." isSommelierMode={isSommelierMode} />}
+        {/* 日本酒タブ: Sakeのみ */}
+        {activeTab === 'sake' && <MenuView data={sakeList.filter(d => d.type === 'Sake')} onSelect={handleOpenDetail} onAdd={handleAddNew} cloudImages={cloudImages} placeholder="日本酒..." isSommelierMode={isSommelierMode} activeTab="sake" />}
+        
+        {/* 焼酎タブ: Sake以外（Shochu, Liqueurなど）を表示し、焼酎を優先ソート */}
+        {activeTab === 'shochu' && <MenuView data={sakeList.filter(d => d.type !== 'Sake')} onSelect={handleOpenDetail} onAdd={handleAddNew} cloudImages={cloudImages} placeholder="焼酎・果実酒..." isSommelierMode={isSommelierMode} activeTab="shochu" />}
+        
         {activeTab === 'stock' && !isSommelierMode && <StockView data={sakeList} />}
         {activeTab === 'calc' && !isSommelierMode && <CalculatorView data={sakeList} />}
         {activeTab === 'map' && <MapView data={sakeList} cloudImages={cloudImages} onSelect={handleOpenDetail} />}
       </div>
 
-      {/* Detail Modal */}
       {modalItem && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setModalItem(null)}>
           <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-            {/* Header / Image Area */}
             <div className="relative h-48 bg-gray-200 cursor-pointer group flex-shrink-0">
                {!isEditMode ? (
                  <div onClick={() => !isSommelierMode && !isUploading && fileInputRef.current?.click()} className="w-full h-full relative">
@@ -560,7 +489,6 @@ export default function SakeManagerApp() {
                <button onClick={() => setModalItem(null)} className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full z-10 hover:bg-black/70"><X size={20}/></button>
             </div>
             
-            {/* Scrollable Content Area */}
             <div className="p-6 overflow-y-auto">
               {!isEditMode ? (
                 <>
@@ -568,7 +496,24 @@ export default function SakeManagerApp() {
                   <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500 mb-4"><p className="text-blue-900 font-medium text-sm leading-relaxed">"{modalItem.sales_talk}"</p></div>
                   {modalItem.pairing_hint && (<div className="flex items-start gap-3 bg-orange-50 p-3 rounded-lg border border-orange-100 mb-6"><Utensils className="text-orange-500 mt-0.5" size={18} /><div><span className="block text-xs font-bold text-orange-800 mb-0.5">おすすめペアリング</span><p className="text-sm text-orange-900">{modalItem.pairing_hint}</p></div></div>)}
                   
-                  {/* Analysis Dashboard (Admin Only) */}
+                  {/* ★ 新機能: コラム（Sake Trivia）表示エリア */}
+                  {triviaList.length > 0 && (
+                    <div className="mb-6 space-y-3">
+                      <div className="flex items-center gap-2 text-gray-800 font-bold text-xs uppercase tracking-wider">
+                        <BookOpen size={14} className="text-gray-500"/> 豆知識 (Trivia)
+                      </div>
+                      {triviaList.map((trivia, index) => (
+                        <div key={trivia.id || index} className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-xl border border-gray-200 relative overflow-hidden">
+                           <div className="flex items-center gap-2 mb-1">
+                             <span className="text-gray-500">{trivia.icon}</span>
+                             <h4 className="font-bold text-xs text-gray-800">{trivia.title}</h4>
+                           </div>
+                           <p className="text-xs text-gray-600 leading-relaxed pl-6">{trivia.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {!isSommelierMode && (
                     <div className="border-t pt-6">
                       <div className="flex items-center gap-2 mb-4"><BarChart3 className="text-gray-400" size={20}/><h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Analysis</h3></div>
