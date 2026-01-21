@@ -25,8 +25,10 @@ const getRankColor = (rank) => {
   }
 };
 
+// 【Mode 1: Sommelier】接客・検索モード
 const MenuView = ({ data, onSelect, cloudImages }) => {
   const [searchTerm, setSearchTerm] = useState('');
+
   const filteredData = useMemo(() => {
     return data.filter(item => 
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -37,22 +39,62 @@ const MenuView = ({ data, onSelect, cloudImages }) => {
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen pb-24">
+      {/* 検索バー */}
       <div className="relative mb-4">
         <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-        <input type="text" placeholder="銘柄、特徴で検索..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <input
+          type="text"
+          placeholder="銘柄、特徴（辛口など）で検索..."
+          className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
-      <div className="space-y-3">
+
+      {/* リスト表示（PCなら2列、スマホなら1列） */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredData.map(item => {
           const displayImage = cloudImages[item.id] || item.image;
           return (
-            <div key={item.id} onClick={() => onSelect(item)} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 active:scale-[0.99] transition-transform cursor-pointer flex gap-4">
+            <div 
+              key={item.id} 
+              onClick={() => onSelect(item)}
+              className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 active:scale-[0.99] transition-transform cursor-pointer flex gap-4"
+            >
+              {/* 画像エリア */}
               <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden border border-gray-200 relative">
-                {displayImage ? <img src={displayImage} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><Camera size={24} /></div>}
+                {displayImage ? (
+                  <img src={displayImage} alt={item.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                    <Camera size={24} />
+                  </div>
+                )}
               </div>
-              <div className="flex-grow">
-                <div><span className={`text-[10px] px-2 py-0.5 rounded-full border ${getRankColor(item.category_rank)} mr-2`}>{item.category_rank}</span><h3 className="text-base font-bold text-gray-800 mt-1">{item.name}</h3></div>
-                <div className="flex flex-wrap gap-1 mb-2">{item.tags.slice(0, 3).map(tag => (<span key={tag} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">#{tag}</span>))}</div>
-                <p className="text-xs text-blue-900 bg-blue-50 p-1.5 rounded border-l-2 border-blue-400 truncate">{item.sales_talk}</p>
+
+              {/* テキストエリア */}
+              <div className="flex-grow min-w-0"> {/* min-w-0がはみ出し防止の魔法 */}
+                <div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getRankColor(item.category_rank)} mr-2`}>
+                    {item.category_rank}
+                  </span>
+                  <h3 className="text-base font-bold text-gray-800 mt-1 truncate">{item.name}</h3>
+                </div>
+                
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {item.tags.slice(0, 3).map(tag => (
+                    <span key={tag} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+                
+                {/* キラーフレーズ（truncateを削除し、折り返し表示に変更） */}
+                <div className="text-xs text-blue-900 bg-blue-50 p-2 rounded border-l-2 border-blue-400">
+                  <p className="leading-relaxed break-words">
+                    {item.sales_talk}
+                  </p>
+                </div>
               </div>
             </div>
           );
@@ -88,6 +130,16 @@ const CalculatorView = ({ data }) => {
           <p className="text-sm text-gray-500">推奨売価 (税抜)</p>
           <p className="text-4xl font-bold text-gray-800">¥{idealPrice.toLocaleString()}</p>
           <div className="flex justify-center gap-4 text-sm mt-2"><span className="text-gray-500">原価: ¥{servingCost}</span><span className="text-gray-500">粗利: ¥{idealPrice - servingCost}</span></div>
+       </div>
+       <div className="mt-6 p-3 bg-yellow-50 rounded text-xs text-yellow-800 border border-yellow-200">
+         <p className="mb-1">💡 <strong>Manager's Note:</strong></p>
+         {selectedItem.category_rank === 'Matsu' ? (
+           <p>この商品は高単価（松）です。原価率を40%程度まで上げて、お得感を出しつつ粗利額（円）を稼ぐ戦略も有効です。</p>
+         ) : selectedItem.category_rank === 'Ume' ? (
+           <p>この商品は回転重視（梅）です。原価率を20-25%に抑え、利益の柱に設定することを推奨します。</p>
+         ) : (
+           <p>標準的な原価率設定です。季節のおすすめとしてメニューの目立つ位置に配置しましょう。</p>
+         )}
        </div>
     </div>
   );
@@ -169,7 +221,7 @@ export default function SakeManagerApp() {
   const isMapMode = activeTab === 'map';
 
   return (
-    <div className="max-w-md mx-auto bg-white min-h-screen shadow-2xl overflow-hidden relative">
+    <div className="w-full md:max-w-4xl mx-auto bg-white min-h-screen shadow-2xl overflow-hidden relative">
       {!isMapMode && <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />}
       <div className="h-full">
         {activeTab === 'menu' && <MenuView data={sakeData} onSelect={setModalItem} cloudImages={cloudImages} />}
