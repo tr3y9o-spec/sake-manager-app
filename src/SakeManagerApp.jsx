@@ -9,7 +9,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // 1. Components
 // ==========================================
 
-// タブ切り替えナビゲーション（4つに増やしました）
+// タブ切り替えナビゲーション
 const TabNav = ({ activeTab, setActiveTab }) => (
   <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm overflow-x-auto">
     <button
@@ -169,23 +169,56 @@ const CalculatorView = ({ data }) => {
   );
 };
 
-// 【Mode: Map】ポジショニングマップ（日本酒のみ）
-const MapView = ({ data, cloudImages }) => {
+// 【Mode: Map】ポジショニングマップ（切り替え機能付き）
+const MapView = ({ data, cloudImages, onSelect }) => {
+  const [mapType, setMapType] = useState('Sake'); // 'Sake' or 'Shochu'
+
   return (
     <div className="p-4 bg-gray-50 min-h-screen flex flex-col">
+       {/* 切り替えスイッチ */}
+       <div className="flex justify-center mb-4">
+         <div className="bg-gray-200 p-1 rounded-lg flex">
+           <button 
+             onClick={() => setMapType('Sake')}
+             className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+           >
+             日本酒
+           </button>
+           <button 
+             onClick={() => setMapType('Shochu')}
+             className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+           >
+             焼酎
+           </button>
+         </div>
+       </div>
+
        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-grow relative overflow-hidden p-4 min-h-[400px]">
+        {/* 軸ラベル（種別によって少し変える演出も可能ですが、今回は共通でいきます） */}
         <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">華やか・香り高</div>
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">穏やか・スッキリ</div>
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 -rotate-90 text-xs font-bold text-gray-400">甘口・芳醇</div>
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 rotate-90 text-xs font-bold text-gray-400">辛口・キレ</div>
+        
         <div className="absolute top-1/2 left-4 right-4 h-px bg-gray-100"></div>
         <div className="absolute left-1/2 top-4 bottom-4 w-px bg-gray-100"></div>
-        {/* 日本酒(Sake)のみを表示 */}
-        {data.filter(d => d.type === 'Sake').map(item => {
+        
+        {/* マーカープロット */}
+        {data.filter(d => d.type === mapType).map(item => {
           const displayImage = cloudImages[item.id] || item.image;
           return (
-            <div key={item.id} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer" style={{ left: `${item.axisX || 50}%`, top: `${100 - (item.axisY || 50)}%` }}>
-              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full border-2 overflow-hidden shadow-md bg-white ${item.category_rank === 'Matsu' ? 'border-yellow-500' : item.category_rank === 'Take' ? 'border-green-500' : 'border-blue-500'}`}>
+            <div 
+              key={item.id} 
+              onClick={() => onSelect(item)} // ★ここをクリックで詳細が開く
+              className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer hover:z-50 hover:scale-110 transition-transform" 
+              style={{ left: `${item.axisX || 50}%`, top: `${100 - (item.axisY || 50)}%` }}
+            >
+              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full border-2 overflow-hidden shadow-md bg-white ${
+                item.category_rank.includes('Matsu') ? 'border-yellow-500' : 
+                item.category_rank.includes('Take') ? 'border-green-500' : 
+                item.category_rank.includes('Shochu') ? 'border-amber-500' :
+                'border-blue-500'
+              }`}>
                 {displayImage ? (<img src={displayImage} alt={item.name} className="w-full h-full object-cover" />) : (<div className="w-full h-full bg-gray-100"></div>)}
               </div>
               <span className="text-[9px] md:text-[10px] font-bold text-gray-700 bg-white/90 px-1 rounded shadow-sm mt-1 whitespace-nowrap z-20">{item.name}</span>
@@ -193,7 +226,7 @@ const MapView = ({ data, cloudImages }) => {
           );
         })}
        </div>
-       <p className="text-center text-xs text-gray-400 mt-2">※日本酒のみ表示中</p>
+       <p className="text-center text-xs text-gray-400 mt-2">※アイコンをタップで詳細を表示</p>
     </div>
   );
 };
@@ -202,7 +235,7 @@ const MapView = ({ data, cloudImages }) => {
 // 3. Main App Container
 // ==========================================
 export default function SakeManagerApp() {
-  const [activeTab, setActiveTab] = useState('sake'); // 初期タブは「日本酒」
+  const [activeTab, setActiveTab] = useState('sake');
   const [modalItem, setModalItem] = useState(null);
   const [cloudImages, setCloudImages] = useState({});
   const [isUploading, setIsUploading] = useState(false);
@@ -243,7 +276,6 @@ export default function SakeManagerApp() {
       <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
       
       <div className="h-full">
-        {/* タブ1: 日本酒（＋リキュール） */}
         {activeTab === 'sake' && (
           <MenuView 
             data={sakeData.filter(d => d.type === 'Sake' || d.type === 'Liqueur')} 
@@ -253,7 +285,6 @@ export default function SakeManagerApp() {
           />
         )}
         
-        {/* タブ2: 焼酎（新規追加！） */}
         {activeTab === 'shochu' && (
           <MenuView 
             data={sakeData.filter(d => d.type === 'Shochu')} 
@@ -263,11 +294,16 @@ export default function SakeManagerApp() {
           />
         )}
 
-        {/* タブ3: 計算機 */}
         {activeTab === 'calc' && <CalculatorView data={sakeData} />}
         
-        {/* タブ4: マップ（日本酒のみに限定！） */}
-        {activeTab === 'map' && <MapView data={sakeData} cloudImages={cloudImages} />}
+        {/* マップに onSelect を渡して、タップしたら詳細が開くようにしました */}
+        {activeTab === 'map' && (
+          <MapView 
+            data={sakeData} 
+            cloudImages={cloudImages} 
+            onSelect={setModalItem} 
+          />
+        )}
       </div>
 
       {/* 詳細モーダル */}
