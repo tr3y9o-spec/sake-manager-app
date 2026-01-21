@@ -8,20 +8,89 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // 1. Logic & Constants (教育用コンテンツ・定数)
 // ==========================================
 
-const PROPOSAL_THEMES = [
-  {
-    id: 'season',
-    label: '今の季節（冬〜早春）',
-    icon: <Calendar size={14} />,
-    color: 'bg-pink-100 text-pink-700 border-pink-200',
-    filter: (item) => item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || (item.axisX > 40 && item.axisY < 60),
-    guide: (
-      <>
-        <span className="font-bold block mb-1">⛄️ アプローチ：旬を味わう</span>
-        「今はちょうど新酒が出揃う時期です。加熱処理をしていない『生酒』や『しぼりたて』は、今しか飲めないフレッシュな味わいが特徴です」と提案しましょう。
-      </>
-    )
-  },
+// ==========================================
+// 1. Logic & Constants (教育用コンテンツ・定数)
+// ==========================================
+
+// ★季節判定ロジック（現在の日時から自動判定）
+const getCurrentSeasonTheme = () => {
+  const month = new Date().getMonth() + 1; // 1月=1, 12月=12
+
+  // --- 春 (3, 4, 5月) ---
+  if (month >= 3 && month <= 5) {
+    return {
+      id: 'season_spring',
+      label: '春・花見酒',
+      icon: <Calendar size={14} />,
+      color: 'bg-pink-100 text-pink-700 border-pink-200',
+      // 春は「甘み・華やか」なタイプ（右側エリア）
+      filter: (item) => item.tags?.some(t => t.includes('花見') || t.includes('春')) || (item.axisY > 50 && item.axisX < 60),
+      guide: (
+        <>
+          <span className="font-bold block mb-1">🌸 アプローチ：華やかさと出会いの季節</span>
+          「春は出会いの季節です。お花の香りのような『華やか』なタイプや、優しい『甘み』のあるお酒が、今の時期の気分にぴったりです」と提案しましょう。
+        </>
+      )
+    };
+  }
+  // --- 夏 (6, 7, 8月) ---
+  else if (month >= 6 && month <= 8) {
+    return {
+      id: 'season_summer',
+      label: '夏・涼み酒',
+      icon: <Calendar size={14} />,
+      color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+      // 夏は「辛口・スッキリ」なタイプ（下・右エリア）
+      filter: (item) => item.tags?.some(t => t.includes('夏')) || (item.axisY < 40 || item.axisX > 60),
+      guide: (
+        <>
+          <span className="font-bold block mb-1">🎐 アプローチ：暑さを忘れるキレ</span>
+          「暑い季節には、後味がスパッと切れる『辛口』や、酸味のある『スッキリ』したお酒が、体に染み渡りますよ」と、清涼感をアピールしましょう。
+        </>
+      )
+    };
+  }
+  // --- 秋 (9, 10, 11月) ---
+  else if (month >= 9 && month <= 11) {
+    return {
+      id: 'season_autumn',
+      label: '秋・ひやおろし',
+      icon: <Calendar size={14} />,
+      color: 'bg-orange-100 text-orange-700 border-orange-200',
+      // 秋は「芳醇・旨味」なタイプ（左下エリア）
+      filter: (item) => item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || (item.axisX < 40 && item.axisY < 60),
+      guide: (
+        <>
+          <span className="font-bold block mb-1">🍁 アプローチ：実りの秋の旨味</span>
+          「秋は食材の味が濃くなる季節です。それに負けない『お米の旨味』がしっかり乗った、秋あがり（ひやおろし）系のお酒が最高に合います」と提案しましょう。
+        </>
+      )
+    };
+  }
+  // --- 冬 (12, 1, 2月) ---
+  else {
+    return {
+      id: 'season_winter',
+      label: '冬・新酒',
+      icon: <Calendar size={14} />,
+      color: 'bg-gray-100 text-gray-700 border-gray-200',
+      // 冬は「新酒（フレッシュ）」または「お燗（芳醇）」
+      // ※ここでは「フレッシュさ」に焦点を当てて、右上エリアを光らせます
+      filter: (item) => item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || (item.axisY > 50),
+      guide: (
+        <>
+          <span className="font-bold block mb-1">⛄️ アプローチ：鮮度を楽しむ</span>
+          「今はちょうど酒造りの最盛期です。今リストアップされているような『フレッシュ』で『香り高い』お酒は、今の時期ならではの生き生きとした味わいが楽しめます」と提案しましょう。
+        </>
+      )
+    };
+  }
+};
+
+// ★ 日本酒用の提案テーマ（季節ロジックを組み込み）
+const PROPOSAL_THEMES_SAKE = [
+  // 1つ目は関数を実行して取得（自動で変わる）
+  getCurrentSeasonTheme(),
   {
     id: 'sashimi',
     label: '刺身・さっぱり',
@@ -31,7 +100,7 @@ const PROPOSAL_THEMES = [
     guide: (
       <>
         <span className="font-bold block mb-1">🐟 アプローチ：素材を引き立てる</span>
-        白身魚や繊細な出汁の料理には、香りが強すぎず、後味がスパッと切れる「辛口」や「スッキリ系」が合います。口の中の脂を流してくれます。
+        白身魚や繊細な出汁の料理には、後味がスパッと切れる「辛口」や「スッキリ系」が合います。口の中をリセットしてくれます。
       </>
     )
   },
@@ -44,7 +113,7 @@ const PROPOSAL_THEMES = [
     guide: (
       <>
         <span className="font-bold block mb-1">🥩 アプローチ：旨味の相乗効果</span>
-        味の濃い料理に負けない「お米の旨味（ボディ）」があるタイプを選びます。「山廃」や「純米酒」など、少し常温〜ぬる燗で美味しいお酒もおすすめです。
+        濃い料理には、負けない「お米の旨味」があるタイプを選びます。「山廃」や「純米酒」など、常温〜ぬる燗で美味しいお酒もおすすめです。
       </>
     )
   },
@@ -57,10 +126,58 @@ const PROPOSAL_THEMES = [
     guide: (
       <>
         <span className="font-bold block mb-1">🥂 アプローチ：香りで高揚感を</span>
-        最初の一杯は、フルーツのような香りがする「華やか」タイプ（大吟醸など）が喜ばれます。ワイングラスで提供すると、より香りが立ちます。
+        最初の一杯は、フルーツのような香りがする「華やか」タイプ（大吟醸など）が喜ばれます。ワイングラスでの提供もおすすめです。
       </>
     )
   }
+];
+
+// ... (PROPOSAL_THEMES_SHOCHU はそのまま) ...
+
+// ★ 焼酎用の提案テーマ（新規追加）
+const PROPOSAL_THEMES_SHOCHU = [
+  {
+    id: 'soda',
+    label: 'ソーダ割り・爽快',
+    icon: <GlassWater size={14} />, // 本当は泡アイコン等が良いですが既存のものを流用
+    color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    // ロジック: スッキリ系(Y<40) または 麦焼酎
+    filter: (item) => item.axisY < 50 || item.category_rank === 'Shochu_Mugi',
+    guide: (
+      <>
+        <span className="font-bold block mb-1">🫧 アプローチ：揚げ物・脂と合わせる</span>
+        「唐揚げや脂の乗った料理には、炭酸で割った『焼酎ハイボール』が最高に合います」と提案しましょう。麦焼酎などは特に相性が良いです。
+      </>
+    )
+  },
+  {
+    id: 'rock',
+    label: 'ロック・素材感',
+    icon: <Database size={14} />, // 氷のイメージで代用
+    color: 'bg-purple-100 text-purple-700 border-purple-200',
+    // ロジック: 芳醇(X<40) または 芋焼酎
+    filter: (item) => item.axisX < 50 || item.category_rank === 'Shochu_Imo',
+    guide: (
+      <>
+        <span className="font-bold block mb-1">🧊 アプローチ：香りをゆっくり楽しむ</span>
+        「素材の香りをダイレクトに楽しむならロックがおすすめです」と伝えます。特に芋焼酎は、氷が溶けるごとの味の変化も楽しめます。
+      </>
+    )
+  },
+  {
+    id: 'warm',
+    label: 'お湯割り・食中',
+    icon: <Utensils size={14} />, // 湯気のイメージで代用
+    color: 'bg-orange-100 text-orange-700 border-orange-200',
+    // ロジック: 芋焼酎 かつ 芳醇(X<60)
+    filter: (item) => item.category_rank === 'Shochu_Imo',
+    guide: (
+      <>
+        <span className="font-bold block mb-1">♨️ アプローチ：甘みを引き出す</span>
+        「お湯割りにすると、芋の甘みと香りが一気に広がります。和食や煮込み料理には、ぬるめのお湯割りが一番の相棒です」と提案します。
+      </>
+    )
+  },
 ];
 
 // 履歴分析ロジック（エラーガード強化版）
@@ -201,11 +318,18 @@ const CalculatorView = ({ data }) => {
 const MapView = ({ data, cloudImages, onSelect }) => {
   const [mapType, setMapType] = useState('Sake'); 
   const [activeThemeId, setActiveThemeId] = useState(null);
-  const activeTheme = PROPOSAL_THEMES.find(t => t.id === activeThemeId);
+
+  // ★ マップタイプに応じて、使うテーマセットを切り替える
+  const currentThemes = mapType === 'Sake' ? PROPOSAL_THEMES_SAKE : PROPOSAL_THEMES_SHOCHU;
+  const activeTheme = currentThemes.find(t => t.id === activeThemeId);
+
+  // マップタイプが変わったら選択中のテーマをリセット
+  useEffect(() => { setActiveThemeId(null); }, [mapType]);
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen flex flex-col pb-32 animate-in fade-in duration-500">
        <div className="flex justify-center mb-4"><div className="bg-gray-200 p-1 rounded-lg flex"><button onClick={() => setMapType('Sake')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>日本酒</button><button onClick={() => setMapType('Shochu')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>焼酎</button></div></div>
+       
        <div className="bg-white rounded-xl shadow-sm border border-gray-200 relative overflow-hidden p-4 min-h-[400px] mb-4">
         <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">華やか・香り高</div>
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">穏やか・スッキリ</div>
@@ -226,10 +350,12 @@ const MapView = ({ data, cloudImages, onSelect }) => {
           );
         })}
        </div>
+
        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
          <div className="bg-gray-50 px-4 py-2 flex items-center gap-2 border-b border-gray-100"><Lightbulb className="text-yellow-500" size={16} /><span className="text-xs font-bold text-gray-600">提案の切り口（スタッフ用ガイド）</span></div>
          <div className="p-3 flex gap-2 overflow-x-auto pb-4 no-scrollbar">
-           {PROPOSAL_THEMES.map(theme => (
+           {/* currentThemesを使ってマップ表示 */}
+           {currentThemes.map(theme => (
              <button key={theme.id} onClick={() => setActiveThemeId(activeThemeId === theme.id ? null : theme.id)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${activeThemeId === theme.id ? theme.color : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>{theme.icon}{theme.label}</button>
            ))}
          </div>
