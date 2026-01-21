@@ -1,8 +1,12 @@
 import React from 'react';
-import MigrateTool from './MigrateTool.jsx';
+import SakeManagerApp from './SakeManagerApp.jsx';
 
 function App() {
-  return <MigrateTool />;
+  return (
+    <div className="min-h-screen bg-gray-100 flex justify-center">
+      <SakeManagerApp />
+    </div>
+  );
 }
 
 export default App;

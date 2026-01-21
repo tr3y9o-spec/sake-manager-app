@@ -1,53 +1,23 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Map, Wine, GlassWater, ChevronRight, Camera, Upload, Loader, X, Utensils } from 'lucide-react';
-import sakeData from './sakeData';
+import { Search, Calculator, Map, Wine, GlassWater, ChevronRight, Camera, Upload, Loader, X, Utensils, Database, RefreshCw } from 'lucide-react';
 import { db, storage } from './firebase';
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, collection, updateDoc, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // ==========================================
 // 1. Components
 // ==========================================
 
-// タブ切り替えナビゲーション
 const TabNav = ({ activeTab, setActiveTab }) => (
   <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm overflow-x-auto">
-    <button
-      onClick={() => setActiveTab('sake')}
-      className={`flex-1 min-w-[80px] py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 text-xs md:text-sm font-medium ${
-        activeTab === 'sake' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'
-      }`}
-    >
-      <Wine size={18} /> 日本酒・他
-    </button>
-    <button
-      onClick={() => setActiveTab('shochu')}
-      className={`flex-1 min-w-[80px] py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 text-xs md:text-sm font-medium ${
-        activeTab === 'shochu' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500'
-      }`}
-    >
-      <GlassWater size={18} /> 焼酎
-    </button>
-    <button
-      onClick={() => setActiveTab('calc')}
-      className={`flex-1 min-w-[80px] py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 text-xs md:text-sm font-medium ${
-        activeTab === 'calc' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500'
-      }`}
-    >
-      <Calculator size={18} /> 原価・設計
-    </button>
-    <button
-      onClick={() => setActiveTab('map')}
-      className={`flex-1 min-w-[80px] py-4 flex flex-col md:flex-row justify-center items-center gap-1 md:gap-2 text-xs md:text-sm font-medium ${
-        activeTab === 'map' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500'
-      }`}
-    >
-      <Map size={18} /> マップ
-    </button>
+    <button onClick={() => setActiveTab('sake')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium ${activeTab === 'sake' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-500'}`}><Wine size={18} /> 日本酒</button>
+    <button onClick={() => setActiveTab('shochu')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium ${activeTab === 'shochu' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500'}`}><GlassWater size={18} /> 焼酎</button>
+    <button onClick={() => setActiveTab('stock')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium ${activeTab === 'stock' ? 'text-red-600 border-b-2 border-red-600' : 'text-gray-500'}`}><Database size={18} /> 資産</button>
+    <button onClick={() => setActiveTab('calc')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium ${activeTab === 'calc' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500'}`}><Calculator size={18} /> 計算</button>
+    <button onClick={() => setActiveTab('map')} className={`flex-1 min-w-[70px] py-3 flex flex-col md:flex-row justify-center items-center gap-1 text-xs font-medium ${activeTab === 'map' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500'}`}><Map size={18} /> マップ</button>
   </div>
 );
 
-// ランクごとのバッジ色定義
 const getRankColor = (rank) => {
   switch (rank) {
     case 'Matsu': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
@@ -60,13 +30,12 @@ const getRankColor = (rank) => {
 };
 
 // ==========================================
-// 2. Views (Modes)
+// 2. Views
 // ==========================================
 
-// 【Mode: Menu】共通のメニューリスト表示
+// 【Mode: Menu】共通メニュー
 const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
   const [searchTerm, setSearchTerm] = useState('');
-
   const filteredData = useMemo(() => {
     return data.filter(item => 
       item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -79,50 +48,24 @@ const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
     <div className="p-4 bg-gray-50 min-h-screen pb-24">
       <div className="relative mb-4">
         <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-        <input
-          type="text"
-          placeholder={placeholder || "検索..."}
-          className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <input type="text" placeholder={placeholder} className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredData.map(item => {
           const displayImage = cloudImages[item.id] || item.image;
           return (
-            <div 
-              key={item.id} 
-              onClick={() => onSelect(item)}
-              className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 active:scale-[0.99] transition-transform cursor-pointer flex gap-4"
-            >
+            <div key={item.id} onClick={() => onSelect(item)} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 active:scale-[0.99] transition-transform cursor-pointer flex gap-4">
               <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden border border-gray-200 relative">
-                {displayImage ? (
-                  <img src={displayImage} alt={item.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-300">
-                    <Camera size={24} />
-                  </div>
-                )}
+                {displayImage ? (<img src={displayImage} alt={item.name} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-gray-300"><Camera size={24} /></div>)}
+                {/* 在庫バッジ */}
+                <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] text-center py-0.5">
+                   残: {item.stock_level ?? 100}%
+                </div>
               </div>
               <div className="flex-grow min-w-0">
-                <div>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getRankColor(item.category_rank)} mr-2`}>
-                    {item.category_rank.replace('Shochu_', '')}
-                  </span>
-                  <h3 className="text-base font-bold text-gray-800 mt-1 truncate">{item.name}</h3>
-                </div>
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {item.tags.slice(0, 3).map(tag => (
-                    <span key={tag} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-                <div className="text-xs text-blue-900 bg-blue-50 p-2 rounded border-l-2 border-blue-400">
-                  <p className="leading-relaxed break-words">{item.sales_talk}</p>
-                </div>
+                <div><span className={`text-[10px] px-2 py-0.5 rounded-full border ${getRankColor(item.category_rank)} mr-2`}>{item.category_rank.replace('Shochu_', '')}</span><h3 className="text-base font-bold text-gray-800 mt-1 truncate">{item.name}</h3></div>
+                <div className="flex flex-wrap gap-1 mb-2">{item.tags.slice(0, 3).map(tag => (<span key={tag} className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">#{tag}</span>))}</div>
+                <div className="text-xs text-blue-900 bg-blue-50 p-2 rounded border-l-2 border-blue-400"><p className="leading-relaxed break-words">{item.sales_talk}</p></div>
               </div>
             </div>
           );
@@ -132,13 +75,87 @@ const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
   );
 };
 
+// 【Mode: Stock】資産・在庫管理 (NEW!)
+const StockView = ({ data }) => {
+  // 資産総額計算 (現在の残量に基づく原価総額)
+  const totalAssetValue = data.reduce((sum, item) => {
+    const stockPercent = item.stock_level ?? 100;
+    return sum + Math.round(item.price_cost * (stockPercent / 100));
+  }, 0);
+
+  const updateStock = async (id, newLevel) => {
+    const ref = doc(db, "sakeList", id);
+    await updateDoc(ref, { stock_level: newLevel, stock_updated_at: new Date().toISOString() });
+  };
+
+  const handleRestock = async (id) => {
+    if(!confirm("納品登録：在庫を100%に戻し、履歴を記録しますか？")) return;
+    const ref = doc(db, "sakeList", id);
+    // 在庫を100にし、履歴配列に現在時刻を追加
+    await updateDoc(ref, { 
+      stock_level: 100, 
+      stock_updated_at: new Date().toISOString(),
+      order_history: arrayUnion(new Date().toISOString()) 
+    });
+  };
+
+  return (
+    <div className="p-4 bg-gray-50 min-h-screen pb-24">
+      {/* 資産ダッシュボード */}
+      <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-xl p-6 text-white shadow-lg mb-6">
+        <p className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">現在の棚卸し資産総額 (推計)</p>
+        <p className="text-3xl font-bold">¥ {totalAssetValue.toLocaleString()}</p>
+        <p className="text-xs text-gray-400 mt-2 text-right">※開封済みボトルを含む原価合計</p>
+      </div>
+
+      <div className="space-y-4">
+        {data.map(item => (
+          <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex justify-between items-start mb-2">
+              <h3 className="font-bold text-gray-800">{item.name}</h3>
+              <span className="text-xs text-gray-500">¥{item.price_cost.toLocaleString()}</span>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <div className="flex-grow">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-500">残量</span>
+                  <span className={`font-bold ${item.stock_level < 20 ? 'text-red-600' : 'text-blue-600'}`}>{item.stock_level ?? 100}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0" max="100" step="10" 
+                  value={item.stock_level ?? 100} 
+                  onChange={(e) => updateStock(item.id, Number(e.target.value))}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                />
+              </div>
+              <button 
+                onClick={() => handleRestock(item.id)}
+                className="flex flex-col items-center justify-center bg-green-50 text-green-700 p-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"
+              >
+                <RefreshCw size={16} />
+                <span className="text-[10px] font-bold mt-1">納品</span>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // 【Mode: Calculator】原価計算
 const CalculatorView = ({ data }) => {
-  const [selectedId, setSelectedId] = useState(data[0].id);
+  const [selectedId, setSelectedId] = useState(data[0]?.id);
   const [targetCostRate, setTargetCostRate] = useState(30);
   const [servingSize, setServingSize] = useState(90);
 
+  // データ読み込み前など、selectedIdが無い場合のガード
   const selectedItem = data.find(i => i.id === selectedId) || data[0];
+  
+  if (!selectedItem) return <div className="p-10 text-center"><Loader className="animate-spin mx-auto"/></div>;
+
   const mlCost = selectedItem.price_cost / selectedItem.capacity_ml;
   const servingCost = Math.round(mlCost * servingSize);
   const idealPrice = Math.round(servingCost / (targetCostRate / 100));
@@ -169,56 +186,31 @@ const CalculatorView = ({ data }) => {
   );
 };
 
-// 【Mode: Map】ポジショニングマップ（切り替え機能付き）
+// 【Mode: Map】ポジショニングマップ
 const MapView = ({ data, cloudImages, onSelect }) => {
-  const [mapType, setMapType] = useState('Sake'); // 'Sake' or 'Shochu'
+  const [mapType, setMapType] = useState('Sake'); 
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen flex flex-col">
-       {/* 切り替えスイッチ */}
        <div className="flex justify-center mb-4">
          <div className="bg-gray-200 p-1 rounded-lg flex">
-           <button 
-             onClick={() => setMapType('Sake')}
-             className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-           >
-             日本酒
-           </button>
-           <button 
-             onClick={() => setMapType('Shochu')}
-             className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-           >
-             焼酎
-           </button>
+           <button onClick={() => setMapType('Sake')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>日本酒</button>
+           <button onClick={() => setMapType('Shochu')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>焼酎</button>
          </div>
        </div>
-
        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-grow relative overflow-hidden p-4 min-h-[400px]">
-        {/* 軸ラベル（種別によって少し変える演出も可能ですが、今回は共通でいきます） */}
         <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">華やか・香り高</div>
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">穏やか・スッキリ</div>
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 -rotate-90 text-xs font-bold text-gray-400">甘口・芳醇</div>
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 rotate-90 text-xs font-bold text-gray-400">辛口・キレ</div>
-        
         <div className="absolute top-1/2 left-4 right-4 h-px bg-gray-100"></div>
         <div className="absolute left-1/2 top-4 bottom-4 w-px bg-gray-100"></div>
         
-        {/* マーカープロット */}
         {data.filter(d => d.type === mapType).map(item => {
           const displayImage = cloudImages[item.id] || item.image;
           return (
-            <div 
-              key={item.id} 
-              onClick={() => onSelect(item)} // ★ここをクリックで詳細が開く
-              className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer hover:z-50 hover:scale-110 transition-transform" 
-              style={{ left: `${item.axisX || 50}%`, top: `${100 - (item.axisY || 50)}%` }}
-            >
-              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full border-2 overflow-hidden shadow-md bg-white ${
-                item.category_rank.includes('Matsu') ? 'border-yellow-500' : 
-                item.category_rank.includes('Take') ? 'border-green-500' : 
-                item.category_rank.includes('Shochu') ? 'border-amber-500' :
-                'border-blue-500'
-              }`}>
+            <div key={item.id} onClick={() => onSelect(item)} className="absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group cursor-pointer hover:z-50 hover:scale-110 transition-transform" style={{ left: `${item.axisX || 50}%`, top: `${100 - (item.axisY || 50)}%` }}>
+              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full border-2 overflow-hidden shadow-md bg-white ${item.category_rank.includes('Matsu') ? 'border-yellow-500' : item.category_rank.includes('Take') ? 'border-green-500' : item.category_rank.includes('Shochu') ? 'border-amber-500' : 'border-blue-500'}`}>
                 {displayImage ? (<img src={displayImage} alt={item.name} className="w-full h-full object-cover" />) : (<div className="w-full h-full bg-gray-100"></div>)}
               </div>
               <span className="text-[9px] md:text-[10px] font-bold text-gray-700 bg-white/90 px-1 rounded shadow-sm mt-1 whitespace-nowrap z-20">{item.name}</span>
@@ -239,18 +231,30 @@ export default function SakeManagerApp() {
   const [modalItem, setModalItem] = useState(null);
   const [cloudImages, setCloudImages] = useState({});
   const [isUploading, setIsUploading] = useState(false);
+  
+  // ★重要：ここが「固定データ」から「Firestore」に変わりました！
+  const [sakeList, setSakeList] = useState([]);
+  
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (!db) { console.warn("Firebase is not initialized."); return; }
-    try {
-      const unsub = onSnapshot(doc(db, "sakeImages", "main"), (doc) => {
-        if (doc.exists()) setCloudImages(doc.data());
-      });
-      return () => unsub();
-    } catch (e) {
-      console.log("Firebase Error:", e);
-    }
+    if (!db) return;
+
+    // 1. 商品データのリアルタイム同期
+    const unsubList = onSnapshot(collection(db, "sakeList"), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setSakeList(list);
+    });
+
+    // 2. 画像URLのリアルタイム同期
+    const unsubImages = onSnapshot(doc(db, "sakeImages", "main"), (doc) => {
+      if (doc.exists()) setCloudImages(doc.data());
+    });
+
+    return () => {
+      unsubList();
+      unsubImages();
+    };
   }, []);
 
   const handleFileUpload = async (event) => {
@@ -278,7 +282,7 @@ export default function SakeManagerApp() {
       <div className="h-full">
         {activeTab === 'sake' && (
           <MenuView 
-            data={sakeData.filter(d => d.type === 'Sake' || d.type === 'Liqueur')} 
+            data={sakeList.filter(d => d.type === 'Sake' || d.type === 'Liqueur')} 
             onSelect={setModalItem} 
             cloudImages={cloudImages} 
             placeholder="日本酒・果実酒を検索..."
@@ -287,23 +291,19 @@ export default function SakeManagerApp() {
         
         {activeTab === 'shochu' && (
           <MenuView 
-            data={sakeData.filter(d => d.type === 'Shochu')} 
+            data={sakeList.filter(d => d.type === 'Shochu')} 
             onSelect={setModalItem} 
             cloudImages={cloudImages} 
             placeholder="焼酎を検索..."
           />
         )}
 
-        {activeTab === 'calc' && <CalculatorView data={sakeData} />}
+        {/* 新しい「資産・在庫」タブ */}
+        {activeTab === 'stock' && <StockView data={sakeList} />}
+
+        {activeTab === 'calc' && <CalculatorView data={sakeList} />}
         
-        {/* マップに onSelect を渡して、タップしたら詳細が開くようにしました */}
-        {activeTab === 'map' && (
-          <MapView 
-            data={sakeData} 
-            cloudImages={cloudImages} 
-            onSelect={setModalItem} 
-          />
-        )}
+        {activeTab === 'map' && <MapView data={sakeList} cloudImages={cloudImages} onSelect={setModalItem} />}
       </div>
 
       {/* 詳細モーダル */}
