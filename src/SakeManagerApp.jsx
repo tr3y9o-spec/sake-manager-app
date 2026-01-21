@@ -23,12 +23,12 @@ const getCurrentSeasonTheme = () => {
       label: '春・花見酒',
       icon: <Calendar size={14} />,
       color: 'bg-pink-100 text-pink-700 border-pink-200',
-      // 春は「甘み・華やか」なタイプ（右側エリア）
-      filter: (item) => item.tags?.some(t => t.includes('花見') || t.includes('春')) || (item.axisY > 50 && item.axisX < 60),
+      // フィルター：甘め・穏やか・華やか（右側〜中央エリア）
+      filter: (item) => item.tags?.some(t => t.includes('花見') || t.includes('春')) || (item.axisX < 60 && item.axisY > 40),
       guide: (
         <>
-          <span className="font-bold block mb-1">🌸 アプローチ：華やかさと出会いの季節</span>
-          「春は出会いの季節です。お花の香りのような『華やか』なタイプや、優しい『甘み』のあるお酒が、今の時期の気分にぴったりです」と提案しましょう。
+          <span className="font-bold block mb-1">🌸 アプローチ：春の陽気に合わせる</span>
+          「春は苦味のある山菜や、淡い味の食材が増える季節です。それに合わせて、とげのない『優しい甘み』や、お花のような『華やかな香り』を持つお酒（マップ右側）が相性抜群です」と提案しましょう。
         </>
       )
     };
@@ -40,12 +40,12 @@ const getCurrentSeasonTheme = () => {
       label: '夏・涼み酒',
       icon: <Calendar size={14} />,
       color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-      // 夏は「辛口・スッキリ」なタイプ（下・右エリア）
-      filter: (item) => item.tags?.some(t => t.includes('夏')) || (item.axisY < 40 || item.axisX > 60),
+      // フィルター：辛口・スッキリ（右側・下側エリア）
+      filter: (item) => item.tags?.some(t => t.includes('夏')) || (item.axisX > 60 || item.axisY < 40),
       guide: (
         <>
-          <span className="font-bold block mb-1">🎐 アプローチ：暑さを忘れるキレ</span>
-          「暑い季節には、後味がスパッと切れる『辛口』や、酸味のある『スッキリ』したお酒が、体に染み渡りますよ」と、清涼感をアピールしましょう。
+          <span className="font-bold block mb-1">🎐 アプローチ：清涼感でリフレッシュ</span>
+          「暑い日には、ベタつかない『辛口』や、酸味の効いた『スッキリ系』のお酒（マップ下・右側）が体に染み渡ります。よく冷やして、ワイングラスで飲むのもおすすめです」と提案しましょう。
         </>
       )
     };
@@ -57,12 +57,12 @@ const getCurrentSeasonTheme = () => {
       label: '秋・ひやおろし',
       icon: <Calendar size={14} />,
       color: 'bg-orange-100 text-orange-700 border-orange-200',
-      // 秋は「芳醇・旨味」なタイプ（左下エリア）
-      filter: (item) => item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || (item.axisX < 40 && item.axisY < 60),
+      // フィルター：芳醇・旨味（左側エリア全般）
+      filter: (item) => item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || (item.axisX < 50),
       guide: (
         <>
-          <span className="font-bold block mb-1">🍁 アプローチ：実りの秋の旨味</span>
-          「秋は食材の味が濃くなる季節です。それに負けない『お米の旨味』がしっかり乗った、秋あがり（ひやおろし）系のお酒が最高に合います」と提案しましょう。
+          <span className="font-bold block mb-1">🍁 アプローチ：食材の濃さに負けない</span>
+          「秋はサンマやキノコなど、旨味の強い食材が旬です。お酒もスッキリしたものより、熟成感やお米のコクがある『芳醇・旨口』タイプ（マップ左側）を選ぶと、料理の味が引き立ちます」と提案しましょう。
         </>
       )
     };
@@ -71,16 +71,22 @@ const getCurrentSeasonTheme = () => {
   else {
     return {
       id: 'season_winter',
-      label: '冬・新酒',
+      label: '冬・料理との対比',
       icon: <Calendar size={14} />,
       color: 'bg-gray-100 text-gray-700 border-gray-200',
-      // 冬は「新酒（フレッシュ）」または「お燗（芳醇）」
-      // ※ここでは「フレッシュさ」に焦点を当てて、右上エリアを光らせます
-      filter: (item) => item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || (item.axisY > 50),
+      
+      // フィルター条件：
+      // 1. 新酒タグがある
+      // 2. 香り高い（Y > 50）：フルーティさで脂を切る
+      // 3. 辛口（X > 60）：キレで脂を流す
+      // ※これにより、新酒がなくても「スッキリ系」や「華やか系」が広く光ります
+      filter: (item) => item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || item.axisY > 50 || item.axisX > 60,
+      
       guide: (
         <>
-          <span className="font-bold block mb-1">⛄️ アプローチ：鮮度を楽しむ</span>
-          「今はちょうど酒造りの最盛期です。今リストアップされているような『フレッシュ』で『香り高い』お酒は、今の時期ならではの生き生きとした味わいが楽しめます」と提案しましょう。
+          <span className="font-bold block mb-1">⛄️ アプローチ：濃厚な味のリセット</span>
+          「冬は寒ブリや肝、お鍋など、脂が乗って味の濃いお料理が美味しい季節です。
+          だからこそ、口の中の脂をサラッと流してくれる『フレッシュで香り高い』お酒や、『キレのある』お酒が、食中酒として抜群に合いますよ」と提案しましょう。
         </>
       )
     };
