@@ -12,9 +12,9 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // 1. Logic & Constants (教育用コンテンツ・定数)
 // ==========================================
 
-// ★季節判定ロジック（現在の日時から自動判定）
+// ★季節判定ロジック（厳選フィルター版）
 const getCurrentSeasonTheme = () => {
-  const month = new Date().getMonth() + 1; // 1月=1, 12月=12
+  const month = new Date().getMonth() + 1;
 
   // --- 春 (3, 4, 5月) ---
   if (month >= 3 && month <= 5) {
@@ -23,12 +23,15 @@ const getCurrentSeasonTheme = () => {
       label: '春・花見酒',
       icon: <Calendar size={14} />,
       color: 'bg-pink-100 text-pink-700 border-pink-200',
-      // フィルター：甘め・穏やか・華やか（右側〜中央エリア）
-      filter: (item) => item.tags?.some(t => t.includes('花見') || t.includes('春')) || (item.axisX < 60 && item.axisY > 40),
+      // 【厳選】「華やか(Y>50)」かつ「甘め(X<50)」の "右上エリア" のみに限定
+      // ※以前より条件を厳しくしました
+      filter: (item) => 
+        item.tags?.some(t => t.includes('花見') || t.includes('春')) || 
+        (item.axisY > 60 && item.axisX < 45),
       guide: (
         <>
           <span className="font-bold block mb-1">🌸 アプローチ：春の陽気に合わせる</span>
-          「春は苦味のある山菜や、淡い味の食材が増える季節です。それに合わせて、とげのない『優しい甘み』や、お花のような『華やかな香り』を持つお酒（マップ右側）が相性抜群です」と提案しましょう。
+          「春の苦味のある山菜などには、とげのない『優しい甘み』と『華やかな香り』を持つお酒（マップ右上）が相性抜群です」と提案しましょう。
         </>
       )
     };
@@ -40,12 +43,15 @@ const getCurrentSeasonTheme = () => {
       label: '夏・涼み酒',
       icon: <Calendar size={14} />,
       color: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-      // フィルター：辛口・スッキリ（右側・下側エリア）
-      filter: (item) => item.tags?.some(t => t.includes('夏')) || (item.axisX > 60 || item.axisY < 40),
+      // 【厳選】「かなり辛口(X>70)」または「夏酒タグ」のみに限定
+      // ※中途半端な辛口は除外
+      filter: (item) => 
+        item.tags?.some(t => t.includes('夏')) || 
+        (item.axisX > 70), 
       guide: (
         <>
           <span className="font-bold block mb-1">🎐 アプローチ：清涼感でリフレッシュ</span>
-          「暑い日には、ベタつかない『辛口』や、酸味の効いた『スッキリ系』のお酒（マップ下・右側）が体に染み渡ります。よく冷やして、ワイングラスで飲むのもおすすめです」と提案しましょう。
+          「暑い日には、後味がスパッと切れる『超辛口』のお酒（マップ右端）が体に染み渡ります。よく冷やしてどうぞ」と提案しましょう。
         </>
       )
     };
@@ -57,12 +63,14 @@ const getCurrentSeasonTheme = () => {
       label: '秋・ひやおろし',
       icon: <Calendar size={14} />,
       color: 'bg-orange-100 text-orange-700 border-orange-200',
-      // フィルター：芳醇・旨味（左側エリア全般）
-      filter: (item) => item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || (item.axisX < 50),
+      // 【厳選】「旨味(X<40)」かつ「穏やか(Y<50)」の "左下ど真ん中" に限定
+      filter: (item) => 
+        item.tags?.some(t => t.includes('秋') || t.includes('ひやおろし')) || 
+        (item.axisX < 40 && item.axisY < 50),
       guide: (
         <>
           <span className="font-bold block mb-1">🍁 アプローチ：食材の濃さに負けない</span>
-          「秋はサンマやキノコなど、旨味の強い食材が旬です。お酒もスッキリしたものより、熟成感やお米のコクがある『芳醇・旨口』タイプ（マップ左側）を選ぶと、料理の味が引き立ちます」と提案しましょう。
+          「秋の味覚には、熟成感やお米のコクがある『芳醇・旨口』タイプ（マップ左下）を選ぶと、料理の味が引き立ちます」と提案しましょう。
         </>
       )
     };
@@ -75,18 +83,19 @@ const getCurrentSeasonTheme = () => {
       icon: <Calendar size={14} />,
       color: 'bg-gray-100 text-gray-700 border-gray-200',
       
-      // フィルター条件：
-      // 1. 新酒タグがある
-      // 2. 香り高い（Y > 50）：フルーティさで脂を切る
-      // 3. 辛口（X > 60）：キレで脂を流す
-      // ※これにより、新酒がなくても「スッキリ系」や「華やか系」が広く光ります
-      filter: (item) => item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || item.axisY > 50 || item.axisX > 60,
+      // 【厳選】冬のターゲットを絞り込む
+      // 条件1: 「新酒」タグがある（最優先）
+      // 条件2: タグがない場合、「香りが高い(Y>65)」かつ「甘すぎない(X>40)」ものに限定
+      // ※これにより、マップ上部の「大吟醸クラス」や「香り高い吟醸」だけがピンポイントで光ります。
+      // ※「単なる辛口」は除外しました。
+      filter: (item) => 
+        item.tags?.some(t => t.includes('新酒') || t.includes('しぼりたて')) || 
+        (item.axisY > 55 && item.axisX > 40),
       
       guide: (
         <>
           <span className="font-bold block mb-1">⛄️ アプローチ：濃厚な味のリセット</span>
-          「冬は寒ブリや肝、お鍋など、脂が乗って味の濃いお料理が美味しい季節です。
-          だからこそ、口の中の脂をサラッと流してくれる『フレッシュで香り高い』お酒や、『キレのある』お酒が、食中酒として抜群に合いますよ」と提案しましょう。
+          「冬の脂が乗った濃厚な料理には、口の中をリセットしてくれる『華やかで香り高い』お酒（マップ上部）が合います。冷酒のフレッシュさで、お鍋などの熱い料理との温度差を楽しむのも粋ですよ」と提案しましょう。
         </>
       )
     };
@@ -259,19 +268,41 @@ const TabNav = ({ activeTab, setActiveTab, isSommelierMode }) => (
   </div>
 );
 
+// ★ StockView: 納品日選択機能 ＋ エラー対策版
 const StockView = ({ data }) => {
   const totalAssetValue = data.reduce((sum, item) => sum + (item.stock_bottles || 0) * item.price_cost + Math.round(item.price_cost * ((item.stock_level ?? 100) / 100)), 0);
   
+  // 納品モーダル用のState
+  const [restockModalItem, setRestockModalItem] = useState(null);
+  const [restockDate, setRestockDate] = useState('');
+
   const updateStock = async (id, field, val) => {
-    try {
-      await updateDoc(doc(db, "sakeList", id), { [field]: val, stock_updated_at: new Date().toISOString() });
-    } catch (e) { console.error("Update failed", e); alert("更新に失敗しました。通信環境を確認してください。"); }
+    // 【エラー対策】IDがない場合は処理を中断
+    if (!id) { console.error("ID不正", { id, field, val }); return; }
+
+    try { await updateDoc(doc(db, "sakeList", id), { [field]: val, stock_updated_at: new Date().toISOString() }); } 
+    catch (e) { console.error("Update failed", e); alert("更新失敗"); }
   };
   
-  const handleRestock = async (id, count) => {
-    if(!confirm("納品登録：在庫を1本追加しますか？")) return;
+  // 納品ボタンを押した時：モーダルを開く
+  const openRestockModal = (item) => {
+    setRestockModalItem(item);
+    setRestockDate(new Date().toISOString().split('T')[0]);
+  };
+
+  // 納品確定処理
+  const handleRestockSubmit = async () => {
+    if (!restockModalItem || !restockDate) return;
     try {
-      await updateDoc(doc(db, "sakeList", id), { stock_bottles: (count || 0) + 1, stock_updated_at: new Date().toISOString(), order_history: arrayUnion(new Date().toISOString()) });
+      const recordDate = new Date(restockDate);
+      recordDate.setHours(12, 0, 0);
+
+      await updateDoc(doc(db, "sakeList", restockModalItem.id), { 
+        stock_bottles: (restockModalItem.stock_bottles || 0) + 1, 
+        stock_updated_at: new Date().toISOString(), 
+        order_history: arrayUnion(recordDate.toISOString()) 
+      });
+      setRestockModalItem(null); 
     } catch (e) { alert("納品処理に失敗しました"); }
   };
 
@@ -287,7 +318,7 @@ const StockView = ({ data }) => {
           <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
             <div className="flex justify-between items-start mb-4">
               <div><h3 className="font-bold text-gray-800">{item.name}</h3><span className="text-xs text-gray-500">原価: ¥{item.price_cost.toLocaleString()}</span></div>
-              <button onClick={() => handleRestock(item.id, item.stock_bottles)} className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"><RefreshCw size={16} /><span className="text-[10px] font-bold mt-1">納品 (+1)</span></button>
+              <button onClick={() => openRestockModal(item)} className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"><RefreshCw size={16} /><span className="text-[10px] font-bold mt-1">納品 (+1)</span></button>
             </div>
             <div className="space-y-4">
               <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg"><span className="text-xs font-bold text-gray-600">未開封在庫</span><div className="flex items-center gap-3"><button onClick={() => updateStock(item.id, 'stock_bottles', Math.max(0, (item.stock_bottles||0)-1))} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm active:bg-gray-200"><Minus size={16}/></button><span className="font-bold text-lg w-6 text-center">{item.stock_bottles || 0}</span><button onClick={() => updateStock(item.id, 'stock_bottles', (item.stock_bottles||0)+1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm active:bg-gray-200"><Plus size={16}/></button></div></div>
@@ -296,6 +327,21 @@ const StockView = ({ data }) => {
           </div>
         ))}
       </div>
+
+      {restockModalItem && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setRestockModalItem(null)}>
+          <div className="bg-white w-full max-w-xs rounded-xl p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-lg mb-2 text-gray-800">納品登録</h3>
+            <p className="text-sm text-gray-500 mb-4">{restockModalItem.name} を1本追加します。<br/>いつ届きましたか？</p>
+            <label className="block text-xs font-bold text-gray-500 mb-1">納品日</label>
+            <input type="date" className="w-full border border-gray-300 rounded-lg p-3 mb-6 font-bold text-gray-700 bg-gray-50 focus:ring-2 focus:ring-green-500 outline-none" value={restockDate} onChange={(e) => setRestockDate(e.target.value)} />
+            <div className="flex gap-2">
+              <button onClick={() => setRestockModalItem(null)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-lg font-bold text-sm">キャンセル</button>
+              <button onClick={handleRestockSubmit} className="flex-[2] py-3 bg-green-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-green-700">確定 (+1本)</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
