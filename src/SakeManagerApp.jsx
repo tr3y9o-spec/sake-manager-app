@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Map, Wine, GlassWater, ChevronRight, Camera, Upload, Loader, X, Utensils, Database, RefreshCw, Plus, Minus } from 'lucide-react';
+import { Search, Calculator, Map, Wine, GlassWater, ChevronRight, Camera, Upload, Loader, X, Utensils, Database, RefreshCw, Plus, Minus, BarChart3, Calendar, TrendingUp } from 'lucide-react';
 import { db, storage } from './firebase';
 import { doc, setDoc, onSnapshot, collection, updateDoc, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -30,10 +30,59 @@ const getRankColor = (rank) => {
 };
 
 // ==========================================
-// 2. Views
+// 2. Helper Functions (分析ロジック)
 // ==========================================
 
-// 【Mode: Menu】共通メニュー
+const analyzeHistory = (history = []) => {
+  if (!history || history.length === 0) return { lastOrder: 'なし', total: 0, cycle: 'データ不足', monthly: [] };
+
+  // 日付順にソート
+  const dates = history.map(d => new Date(d)).sort((a, b) => a - b);
+  const lastOrderDate = dates[dates.length - 1];
+  
+  // 最終納品日
+  const lastOrder = lastOrderDate.toLocaleDateString('ja-JP');
+
+  // 平均サイクル（日）
+  let cycle = 'データ不足';
+  if (dates.length > 1) {
+    const firstDate = dates[0];
+    const diffTime = Math.abs(lastOrderDate - firstDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    cycle = Math.round(diffDays / (dates.length - 1)) + '日';
+  }
+
+  // 月別集計（直近6ヶ月）
+  const monthlyCounts = {};
+  const months = [];
+  // 今月を含めて過去6ヶ月分のキーを作る
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - i);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+    monthlyCounts[key] = 0;
+    months.push({ key, label: `${d.getMonth() + 1}月` });
+  }
+
+  dates.forEach(date => {
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    if (monthlyCounts[key] !== undefined) {
+      monthlyCounts[key]++;
+    }
+  });
+
+  const monthlyData = months.map(m => ({
+    label: m.label,
+    count: monthlyCounts[m.key]
+  }));
+
+  return { lastOrder, total: history.length, cycle, monthly: monthlyData };
+};
+
+// ==========================================
+// 3. Views
+// ==========================================
+
 const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const filteredData = useMemo(() => {
@@ -53,7 +102,6 @@ const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredData.map(item => {
           const displayImage = cloudImages[item.id] || item.image;
-          // 在庫表示：(本数 × 100) + 残量%
           const bottles = item.stock_bottles || 0;
           const level = item.stock_level ?? 100;
           const totalStockDisplay = bottles > 0 ? `${bottles}本 + ${level}%` : `${level}%`;
@@ -79,31 +127,25 @@ const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
   );
 };
 
-// 【Mode: Stock】資産・在庫管理 (NEW: 複数本対応版)
 const StockView = ({ data }) => {
-  // 資産総額計算 (未開封ボトル + 開封済み残量)
   const totalAssetValue = data.reduce((sum, item) => {
     const bottles = item.stock_bottles || 0;
     const level = item.stock_level ?? 100;
     const bottleValue = item.price_cost;
-    // (ボトル本数 * 単価) + (単価 * 残量%)
     return sum + (bottles * bottleValue) + Math.round(bottleValue * (level / 100));
   }, 0);
 
-  // 未開封ボトルの増減
   const updateBottleCount = async (id, currentCount, delta) => {
     const newCount = Math.max(0, (currentCount || 0) + delta);
     const ref = doc(db, "sakeList", id);
     await updateDoc(ref, { stock_bottles: newCount, stock_updated_at: new Date().toISOString() });
   };
 
-  // 開封済み残量の変更
   const updateLevel = async (id, newLevel) => {
     const ref = doc(db, "sakeList", id);
     await updateDoc(ref, { stock_level: newLevel, stock_updated_at: new Date().toISOString() });
   };
 
-  // 納品登録（ボトルを1本追加して履歴保存）
   const handleRestock = async (id, currentCount) => {
     if(!confirm("納品登録：在庫を1本追加し、履歴を記録しますか？")) return;
     const ref = doc(db, "sakeList", id);
@@ -116,60 +158,25 @@ const StockView = ({ data }) => {
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen pb-24">
-      {/* 資産ダッシュボード */}
       <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-xl p-6 text-white shadow-lg mb-6">
         <p className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">現在の棚卸し資産総額 (推計)</p>
         <p className="text-3xl font-bold">¥ {totalAssetValue.toLocaleString()}</p>
-        <div className="flex justify-end gap-4 text-xs text-gray-400 mt-2">
-           <span>未開封在庫含む</span>
-        </div>
+        <div className="flex justify-end gap-4 text-xs text-gray-400 mt-2"><span>未開封在庫含む</span></div>
       </div>
-
       <div className="space-y-4">
         {data.map(item => (
           <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
             <div className="flex justify-between items-start mb-4">
-              <div>
-                 <h3 className="font-bold text-gray-800">{item.name}</h3>
-                 <span className="text-xs text-gray-500">原価: ¥{item.price_cost.toLocaleString()}</span>
-              </div>
-              {/* 納品ボタン */}
-              <button 
-                onClick={() => handleRestock(item.id, item.stock_bottles)}
-                className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"
-              >
-                <RefreshCw size={16} />
-                <span className="text-[10px] font-bold mt-1">納品 (+1)</span>
-              </button>
+              <div><h3 className="font-bold text-gray-800">{item.name}</h3><span className="text-xs text-gray-500">原価: ¥{item.price_cost.toLocaleString()}</span></div>
+              <button onClick={() => handleRestock(item.id, item.stock_bottles)} className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"><RefreshCw size={16} /><span className="text-[10px] font-bold mt-1">納品 (+1)</span></button>
             </div>
-            
             <div className="space-y-4">
-              {/* 1. 未開封ボトル管理 */}
               <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
                 <span className="text-xs font-bold text-gray-600">未開封在庫</span>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => updateBottleCount(item.id, item.stock_bottles, -1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm hover:bg-gray-100 active:bg-gray-200 text-gray-500"><Minus size={16}/></button>
-                  <span className="font-bold text-lg w-6 text-center">{item.stock_bottles || 0}</span>
-                  <button onClick={() => updateBottleCount(item.id, item.stock_bottles, 1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm hover:bg-gray-100 active:bg-gray-200 text-gray-500"><Plus size={16}/></button>
-                </div>
+                <div className="flex items-center gap-3"><button onClick={() => updateBottleCount(item.id, item.stock_bottles, -1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm hover:bg-gray-100 active:bg-gray-200 text-gray-500"><Minus size={16}/></button><span className="font-bold text-lg w-6 text-center">{item.stock_bottles || 0}</span><button onClick={() => updateBottleCount(item.id, item.stock_bottles, 1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm hover:bg-gray-100 active:bg-gray-200 text-gray-500"><Plus size={16}/></button></div>
               </div>
-
-              {/* 2. 開封済み残量スライダー */}
-              <div>
-                <div className="flex justify-between text-xs mb-1 px-1">
-                  <span className="text-gray-500">開封済みボトル残量</span>
-                  <span className={`font-bold ${item.stock_level < 20 ? 'text-red-600' : 'text-blue-600'}`}>{item.stock_level ?? 100}%</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="0" max="100" step="10" 
-                  value={item.stock_level ?? 100} 
-                  onChange={(e) => updateLevel(item.id, Number(e.target.value))}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                />
-              </div>
+              <div><div className="flex justify-between text-xs mb-1 px-1"><span className="text-gray-500">開封済みボトル残量</span><span className={`font-bold ${item.stock_level < 20 ? 'text-red-600' : 'text-blue-600'}`}>{item.stock_level ?? 100}%</span></div><input type="range" min="0" max="100" step="10" value={item.stock_level ?? 100} onChange={(e) => updateLevel(item.id, Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600" /></div>
             </div>
-
           </div>
         ))}
       </div>
@@ -177,16 +184,12 @@ const StockView = ({ data }) => {
   );
 };
 
-// 【Mode: Calculator】原価計算
 const CalculatorView = ({ data }) => {
   const [selectedId, setSelectedId] = useState(data[0]?.id);
   const [targetCostRate, setTargetCostRate] = useState(30);
   const [servingSize, setServingSize] = useState(90);
-
   const selectedItem = data.find(i => i.id === selectedId) || data[0];
-  
   if (!selectedItem) return <div className="p-10 text-center"><Loader className="animate-spin mx-auto"/></div>;
-
   const mlCost = selectedItem.price_cost / selectedItem.capacity_ml;
   const servingCost = Math.round(mlCost * servingSize);
   const idealPrice = Math.round(servingCost / (targetCostRate / 100));
@@ -195,40 +198,21 @@ const CalculatorView = ({ data }) => {
     <div className="p-4 bg-gray-50 min-h-screen">
        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-gray-500 text-sm font-bold mb-4 uppercase tracking-wider">Parameters</h2>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">対象商品</label>
-          <select className="w-full p-2 border border-gray-300 rounded-md" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-            {data.map(item => (<option key={item.id} value={item.id}>{item.name}</option>))}
-          </select>
-        </div>
+        <div className="mb-4"><label className="block text-sm font-medium text-gray-700 mb-1">対象商品</label><select className="w-full p-2 border border-gray-300 rounded-md" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>{data.map(item => (<option key={item.id} value={item.id}>{item.name}</option>))}</select></div>
         <div className="mb-6"><div className="flex justify-between mb-1"><label className="text-sm font-medium text-gray-700">提供量</label><span className="text-sm font-bold text-blue-600">{servingSize} ml</span></div><input type="range" min="30" max="360" step="10" value={servingSize} onChange={(e) => setServingSize(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
         <div className="mb-2"><div className="flex justify-between mb-1"><label className="text-sm font-medium text-gray-700">目標原価率</label><span className="text-sm font-bold text-green-600">{targetCostRate}%</span></div><input type="range" min="10" max="100" step="5" value={targetCostRate} onChange={(e) => setTargetCostRate(Number(e.target.value))} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" /></div>
        </div>
-       <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-green-500 text-center">
-          <p className="text-sm text-gray-500">推奨売価 (税抜)</p>
-          <p className="text-4xl font-bold text-gray-800">¥{idealPrice.toLocaleString()}</p>
-          <div className="flex justify-center gap-4 text-sm mt-2"><span className="text-gray-500">原価: ¥{servingCost}</span><span className="text-gray-500">粗利: ¥{idealPrice - servingCost}</span></div>
-       </div>
-       <div className="mt-6 p-3 bg-yellow-50 rounded text-xs text-yellow-800 border border-yellow-200">
-         <p className="mb-1">💡 <strong>Manager's Note:</strong></p>
-         {selectedItem.category_rank === 'Matsu' ? <p>高単価商品です。原価率40%許容で満足度UPを狙いましょう。</p> : <p>標準的な設定でOKです。</p>}
-       </div>
+       <div className="bg-white p-6 rounded-xl shadow-lg border-t-4 border-green-500 text-center"><p className="text-sm text-gray-500">推奨売価 (税抜)</p><p className="text-4xl font-bold text-gray-800">¥{idealPrice.toLocaleString()}</p><div className="flex justify-center gap-4 text-sm mt-2"><span className="text-gray-500">原価: ¥{servingCost}</span><span className="text-gray-500">粗利: ¥{idealPrice - servingCost}</span></div></div>
+       <div className="mt-6 p-3 bg-yellow-50 rounded text-xs text-yellow-800 border border-yellow-200"><p className="mb-1">💡 <strong>Manager's Note:</strong></p>{selectedItem.category_rank === 'Matsu' ? <p>高単価商品です。原価率40%許容で満足度UPを狙いましょう。</p> : <p>標準的な設定でOKです。</p>}</div>
     </div>
   );
 };
 
-// 【Mode: Map】ポジショニングマップ
 const MapView = ({ data, cloudImages, onSelect }) => {
   const [mapType, setMapType] = useState('Sake'); 
-
   return (
     <div className="p-4 bg-gray-50 min-h-screen flex flex-col">
-       <div className="flex justify-center mb-4">
-         <div className="bg-gray-200 p-1 rounded-lg flex">
-           <button onClick={() => setMapType('Sake')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>日本酒</button>
-           <button onClick={() => setMapType('Shochu')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>焼酎</button>
-         </div>
-       </div>
+       <div className="flex justify-center mb-4"><div className="bg-gray-200 p-1 rounded-lg flex"><button onClick={() => setMapType('Sake')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Sake' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>日本酒</button><button onClick={() => setMapType('Shochu')} className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${mapType === 'Shochu' ? 'bg-white text-amber-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>焼酎</button></div></div>
        <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex-grow relative overflow-hidden p-4 min-h-[400px]">
         <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">華やか・香り高</div>
         <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 text-xs font-bold text-gray-400">穏やか・スッキリ</div>
@@ -236,7 +220,6 @@ const MapView = ({ data, cloudImages, onSelect }) => {
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 rotate-90 text-xs font-bold text-gray-400">辛口・キレ</div>
         <div className="absolute top-1/2 left-4 right-4 h-px bg-gray-100"></div>
         <div className="absolute left-1/2 top-4 bottom-4 w-px bg-gray-100"></div>
-        
         {data.filter(d => d.type === mapType).map(item => {
           const displayImage = cloudImages[item.id] || item.image;
           return (
@@ -255,7 +238,7 @@ const MapView = ({ data, cloudImages, onSelect }) => {
 };
 
 // ==========================================
-// 3. Main App Container
+// 4. Main App Container
 // ==========================================
 export default function SakeManagerApp() {
   const [activeTab, setActiveTab] = useState('sake');
@@ -295,40 +278,25 @@ export default function SakeManagerApp() {
     }
   };
 
+  // モーダル表示時に計算する統計データ
+  const stats = modalItem ? analyzeHistory(modalItem.order_history) : null;
+
   return (
     <div className="w-full md:max-w-4xl mx-auto bg-white min-h-screen shadow-2xl overflow-hidden relative">
       <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
       
       <div className="h-full">
-        {activeTab === 'sake' && (
-          <MenuView 
-            data={sakeList.filter(d => d.type === 'Sake' || d.type === 'Liqueur')} 
-            onSelect={setModalItem} 
-            cloudImages={cloudImages} 
-            placeholder="日本酒・果実酒を検索..."
-          />
-        )}
-        
-        {activeTab === 'shochu' && (
-          <MenuView 
-            data={sakeList.filter(d => d.type === 'Shochu')} 
-            onSelect={setModalItem} 
-            cloudImages={cloudImages} 
-            placeholder="焼酎を検索..."
-          />
-        )}
-
-        {/* 資産タブ: 複数本対応版 */}
+        {activeTab === 'sake' && <MenuView data={sakeList.filter(d => d.type === 'Sake' || d.type === 'Liqueur')} onSelect={setModalItem} cloudImages={cloudImages} placeholder="日本酒・果実酒を検索..." />}
+        {activeTab === 'shochu' && <MenuView data={sakeList.filter(d => d.type === 'Shochu')} onSelect={setModalItem} cloudImages={cloudImages} placeholder="焼酎を検索..." />}
         {activeTab === 'stock' && <StockView data={sakeList} />}
-
         {activeTab === 'calc' && <CalculatorView data={sakeList} />}
-        
         {activeTab === 'map' && <MapView data={sakeList} cloudImages={cloudImages} onSelect={setModalItem} />}
       </div>
 
+      {/* 詳細モーダル */}
       {modalItem && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4" onClick={() => setModalItem(null)}>
-          <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="relative h-64 bg-gray-200 cursor-pointer group" onClick={() => !isUploading && fileInputRef.current?.click()}>
                {cloudImages[modalItem.id] || modalItem.image ? (
                  <img src={cloudImages[modalItem.id] || modalItem.image} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} alt={modalItem.name} />
@@ -349,7 +317,7 @@ export default function SakeManagerApp() {
               </div>
 
               {modalItem.pairing_hint && (
-                <div className="flex items-start gap-3 bg-orange-50 p-3 rounded-lg border border-orange-100 mb-4">
+                <div className="flex items-start gap-3 bg-orange-50 p-3 rounded-lg border border-orange-100 mb-6">
                    <Utensils className="text-orange-500 mt-0.5" size={18} />
                    <div>
                      <span className="block text-xs font-bold text-orange-800 mb-0.5">おすすめペアリング</span>
@@ -358,7 +326,54 @@ export default function SakeManagerApp() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4 text-sm border-t pt-4"><div><span className="block text-gray-400 text-xs">Capacity</span><span className="font-bold">{modalItem.capacity_ml}ml</span></div><div><span className="block text-gray-400 text-xs">Cost</span><span className="font-bold">¥{modalItem.price_cost.toLocaleString()}</span></div></div>
+              {/* === 新機能: 分析ダッシュボード === */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart3 className="text-gray-400" size={20}/>
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Analysis Dashboard</h3>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="bg-gray-50 p-2 rounded-lg text-center">
+                    <span className="block text-[10px] text-gray-500">最終納品</span>
+                    <span className="block font-bold text-sm">{stats.lastOrder}</span>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded-lg text-center">
+                    <span className="block text-[10px] text-gray-500">累計納品</span>
+                    <span className="block font-bold text-sm">{stats.total}回</span>
+                  </div>
+                  <div className="bg-gray-50 p-2 rounded-lg text-center">
+                    <span className="block text-[10px] text-gray-500">平均サイクル</span>
+                    <span className="block font-bold text-sm text-blue-600">{stats.cycle}</span>
+                  </div>
+                </div>
+
+                {/* 簡易棒グラフ (HTML/CSSのみ) */}
+                <div className="bg-white border border-gray-100 p-4 rounded-lg shadow-inner">
+                  <p className="text-xs font-bold text-gray-400 mb-2 flex items-center gap-1"><TrendingUp size={12}/> 月別消費トレンド (直近6ヶ月)</p>
+                  <div className="flex items-end justify-between h-24 gap-1">
+                    {stats.monthly.map((m, i) => {
+                      // 最大値を基準に高さを決める（Maxが0なら0）
+                      const max = Math.max(...stats.monthly.map(d => d.count)) || 1;
+                      const heightPercent = (m.count / max) * 100;
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center group">
+                           {/* ツールチップ的な数値表示 */}
+                           <span className="text-[9px] text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity absolute mb-8 bg-black text-white px-1 rounded">{m.count}</span>
+                           <div 
+                             className={`w-full max-w-[20px] rounded-t-sm transition-all duration-500 ${m.count > 0 ? 'bg-blue-400 hover:bg-blue-500' : 'bg-gray-100'}`}
+                             style={{ height: `${heightPercent}%`, minHeight: m.count > 0 ? '4px' : '2px' }}
+                           ></div>
+                           <span className="text-[9px] text-gray-400 mt-1">{m.label.replace('月','')}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {/* ================================== */}
+
+              <div className="grid grid-cols-2 gap-4 text-sm border-t pt-4 mt-6"><div><span className="block text-gray-400 text-xs">Capacity</span><span className="font-bold">{modalItem.capacity_ml}ml</span></div><div><span className="block text-gray-400 text-xs">Cost</span><span className="font-bold">¥{modalItem.price_cost.toLocaleString()}</span></div></div>
             </div>
           </div>
         </div>
