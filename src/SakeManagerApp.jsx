@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Search, Calculator, Map, Wine, GlassWater, ChevronRight, Camera, Upload, Loader, X, Utensils, Database, RefreshCw } from 'lucide-react';
+import { Search, Calculator, Map, Wine, GlassWater, ChevronRight, Camera, Upload, Loader, X, Utensils, Database, RefreshCw, Plus, Minus } from 'lucide-react';
 import { db, storage } from './firebase';
 import { doc, setDoc, onSnapshot, collection, updateDoc, arrayUnion } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -53,13 +53,17 @@ const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredData.map(item => {
           const displayImage = cloudImages[item.id] || item.image;
+          // 在庫表示：(本数 × 100) + 残量%
+          const bottles = item.stock_bottles || 0;
+          const level = item.stock_level ?? 100;
+          const totalStockDisplay = bottles > 0 ? `${bottles}本 + ${level}%` : `${level}%`;
+
           return (
             <div key={item.id} onClick={() => onSelect(item)} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 active:scale-[0.99] transition-transform cursor-pointer flex gap-4">
               <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden border border-gray-200 relative">
                 {displayImage ? (<img src={displayImage} alt={item.name} className="w-full h-full object-cover" />) : (<div className="w-full h-full flex items-center justify-center text-gray-300"><Camera size={24} /></div>)}
-                {/* 在庫バッジ */}
                 <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] text-center py-0.5">
-                   残: {item.stock_level ?? 100}%
+                   残: {totalStockDisplay}
                 </div>
               </div>
               <div className="flex-grow min-w-0">
@@ -75,25 +79,36 @@ const MenuView = ({ data, onSelect, cloudImages, placeholder }) => {
   );
 };
 
-// 【Mode: Stock】資産・在庫管理 (NEW!)
+// 【Mode: Stock】資産・在庫管理 (NEW: 複数本対応版)
 const StockView = ({ data }) => {
-  // 資産総額計算 (現在の残量に基づく原価総額)
+  // 資産総額計算 (未開封ボトル + 開封済み残量)
   const totalAssetValue = data.reduce((sum, item) => {
-    const stockPercent = item.stock_level ?? 100;
-    return sum + Math.round(item.price_cost * (stockPercent / 100));
+    const bottles = item.stock_bottles || 0;
+    const level = item.stock_level ?? 100;
+    const bottleValue = item.price_cost;
+    // (ボトル本数 * 単価) + (単価 * 残量%)
+    return sum + (bottles * bottleValue) + Math.round(bottleValue * (level / 100));
   }, 0);
 
-  const updateStock = async (id, newLevel) => {
+  // 未開封ボトルの増減
+  const updateBottleCount = async (id, currentCount, delta) => {
+    const newCount = Math.max(0, (currentCount || 0) + delta);
+    const ref = doc(db, "sakeList", id);
+    await updateDoc(ref, { stock_bottles: newCount, stock_updated_at: new Date().toISOString() });
+  };
+
+  // 開封済み残量の変更
+  const updateLevel = async (id, newLevel) => {
     const ref = doc(db, "sakeList", id);
     await updateDoc(ref, { stock_level: newLevel, stock_updated_at: new Date().toISOString() });
   };
 
-  const handleRestock = async (id) => {
-    if(!confirm("納品登録：在庫を100%に戻し、履歴を記録しますか？")) return;
+  // 納品登録（ボトルを1本追加して履歴保存）
+  const handleRestock = async (id, currentCount) => {
+    if(!confirm("納品登録：在庫を1本追加し、履歴を記録しますか？")) return;
     const ref = doc(db, "sakeList", id);
-    // 在庫を100にし、履歴配列に現在時刻を追加
     await updateDoc(ref, { 
-      stock_level: 100, 
+      stock_bottles: (currentCount || 0) + 1, 
       stock_updated_at: new Date().toISOString(),
       order_history: arrayUnion(new Date().toISOString()) 
     });
@@ -105,39 +120,56 @@ const StockView = ({ data }) => {
       <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-xl p-6 text-white shadow-lg mb-6">
         <p className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">現在の棚卸し資産総額 (推計)</p>
         <p className="text-3xl font-bold">¥ {totalAssetValue.toLocaleString()}</p>
-        <p className="text-xs text-gray-400 mt-2 text-right">※開封済みボトルを含む原価合計</p>
+        <div className="flex justify-end gap-4 text-xs text-gray-400 mt-2">
+           <span>未開封在庫含む</span>
+        </div>
       </div>
 
       <div className="space-y-4">
         {data.map(item => (
           <div key={item.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="font-bold text-gray-800">{item.name}</h3>
-              <span className="text-xs text-gray-500">¥{item.price_cost.toLocaleString()}</span>
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                 <h3 className="font-bold text-gray-800">{item.name}</h3>
+                 <span className="text-xs text-gray-500">原価: ¥{item.price_cost.toLocaleString()}</span>
+              </div>
+              {/* 納品ボタン */}
+              <button 
+                onClick={() => handleRestock(item.id, item.stock_bottles)}
+                className="flex flex-col items-center justify-center bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"
+              >
+                <RefreshCw size={16} />
+                <span className="text-[10px] font-bold mt-1">納品 (+1)</span>
+              </button>
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="flex-grow">
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-gray-500">残量</span>
+            <div className="space-y-4">
+              {/* 1. 未開封ボトル管理 */}
+              <div className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
+                <span className="text-xs font-bold text-gray-600">未開封在庫</span>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => updateBottleCount(item.id, item.stock_bottles, -1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm hover:bg-gray-100 active:bg-gray-200 text-gray-500"><Minus size={16}/></button>
+                  <span className="font-bold text-lg w-6 text-center">{item.stock_bottles || 0}</span>
+                  <button onClick={() => updateBottleCount(item.id, item.stock_bottles, 1)} className="w-8 h-8 flex items-center justify-center bg-white border rounded-full shadow-sm hover:bg-gray-100 active:bg-gray-200 text-gray-500"><Plus size={16}/></button>
+                </div>
+              </div>
+
+              {/* 2. 開封済み残量スライダー */}
+              <div>
+                <div className="flex justify-between text-xs mb-1 px-1">
+                  <span className="text-gray-500">開封済みボトル残量</span>
                   <span className={`font-bold ${item.stock_level < 20 ? 'text-red-600' : 'text-blue-600'}`}>{item.stock_level ?? 100}%</span>
                 </div>
                 <input 
                   type="range" 
                   min="0" max="100" step="10" 
                   value={item.stock_level ?? 100} 
-                  onChange={(e) => updateStock(item.id, Number(e.target.value))}
+                  onChange={(e) => updateLevel(item.id, Number(e.target.value))}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                 />
               </div>
-              <button 
-                onClick={() => handleRestock(item.id)}
-                className="flex flex-col items-center justify-center bg-green-50 text-green-700 p-2 rounded-lg border border-green-200 hover:bg-green-100 active:scale-95 transition-transform"
-              >
-                <RefreshCw size={16} />
-                <span className="text-[10px] font-bold mt-1">納品</span>
-              </button>
             </div>
+
           </div>
         ))}
       </div>
@@ -151,7 +183,6 @@ const CalculatorView = ({ data }) => {
   const [targetCostRate, setTargetCostRate] = useState(30);
   const [servingSize, setServingSize] = useState(90);
 
-  // データ読み込み前など、selectedIdが無い場合のガード
   const selectedItem = data.find(i => i.id === selectedId) || data[0];
   
   if (!selectedItem) return <div className="p-10 text-center"><Loader className="animate-spin mx-auto"/></div>;
@@ -231,30 +262,19 @@ export default function SakeManagerApp() {
   const [modalItem, setModalItem] = useState(null);
   const [cloudImages, setCloudImages] = useState({});
   const [isUploading, setIsUploading] = useState(false);
-  
-  // ★重要：ここが「固定データ」から「Firestore」に変わりました！
   const [sakeList, setSakeList] = useState([]);
-  
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!db) return;
-
-    // 1. 商品データのリアルタイム同期
     const unsubList = onSnapshot(collection(db, "sakeList"), (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setSakeList(list);
     });
-
-    // 2. 画像URLのリアルタイム同期
     const unsubImages = onSnapshot(doc(db, "sakeImages", "main"), (doc) => {
       if (doc.exists()) setCloudImages(doc.data());
     });
-
-    return () => {
-      unsubList();
-      unsubImages();
-    };
+    return () => { unsubList(); unsubImages(); };
   }, []);
 
   const handleFileUpload = async (event) => {
@@ -298,7 +318,7 @@ export default function SakeManagerApp() {
           />
         )}
 
-        {/* 新しい「資産・在庫」タブ */}
+        {/* 資産タブ: 複数本対応版 */}
         {activeTab === 'stock' && <StockView data={sakeList} />}
 
         {activeTab === 'calc' && <CalculatorView data={sakeList} />}
@@ -306,7 +326,6 @@ export default function SakeManagerApp() {
         {activeTab === 'map' && <MapView data={sakeList} cloudImages={cloudImages} onSelect={setModalItem} />}
       </div>
 
-      {/* 詳細モーダル */}
       {modalItem && (
         <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4" onClick={() => setModalItem(null)}>
           <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200" onClick={e => e.stopPropagation()}>
