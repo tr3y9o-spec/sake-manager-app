@@ -8,116 +8,32 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 // 1. Logic & Knowledge Base (知識の源泉)
 // ==========================================
 
-// ★ コラム（豆知識）マスターデータベース【全50件】
+// ★ コラム（豆知識）マスターデータベース【優先度付き】
+// priority: 3(特有/希少) > 2(分類/原料) > 1(傾向/飲み方) > 0(汎用)
 const TRIVIA_MASTER_DB = [
   // ====================
   // 🍶 日本酒 (30件)
   // ====================
-  // --- A. 特定名称・スペック ---
-  {
-    id: 'sake_daiginjo',
-    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('大吟醸')) || item.category_rank.includes('Matsu')),
-    icon: <Sparkles size={14}/>,
-    title: '大吟醸の「50%」の意味',
-    text: 'お米を半分以上削り、中心のデンプン質だけを贅沢に使います。雑味の元になる外側を削ぎ落とし、低温で発酵させることで、果実のような華やかな香りが生まれます。'
-  },
-  {
-    id: 'sake_junmai',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('純米')),
-    icon: <Wheat size={14}/>,
-    title: '「純米」はお米のジュース',
-    text: '醸造アルコールを一切添加せず、お米と水と麹だけで造ったお酒です。炊き立てのご飯のような穀物の香りや、お米本来のふくよかな旨味をダイレクトに感じられます。'
-  },
-  {
-    id: 'sake_honjozo',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('本醸造')),
-    icon: <FlaskConical size={14}/>,
-    title: '「アル添」は技術の証',
-    text: '醸造アルコールの添加は、香り成分を引き出し、後味を軽快にする伝統技術です。本醸造はキレが良く飲み飽きしないため、実は晩酌の最強のパートナーと言われます。'
-  },
-  {
-    id: 'sake_genshu',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('原酒')),
-    icon: <Droplets size={14}/>,
-    title: '「原酒」＝ロック推奨？',
-    text: '加水調整をしていない搾ったままのお酒。アルコール度数が高く濃厚なため、氷を浮かべて「オンザロック」にすると、溶けゆく味わいの変化を楽しめます。'
-  },
-  {
-    id: 'sake_namazake',
-    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('生酒')) || item.tags?.some(t => t.includes('新酒'))),
-    icon: <Sparkles size={14}/>,
-    title: '火入れなしの「生」',
-    text: '加熱殺菌を一切しない「すっぴん」のお酒。酵母が生み出した微炭酸（ガス感）や、青リンゴのようなフレッシュな香りが生きています。要冷蔵のデリケートな味です。'
-  },
-  {
-    id: 'sake_kijoshu',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('貴醸酒')),
-    icon: <Moon size={14}/>,
-    title: 'お酒でお酒を仕込む？',
-    text: '仕込み水の代わりに「日本酒」を使って仕込む贅沢なお酒。非常に濃厚で甘美な味わいになり、デザートワインのように食後酒として楽しむのがおすすめです。'
-  },
-  {
-    id: 'sake_koshu',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('古酒')),
-    icon: <Calendar size={14}/>,
-    title: '時が育てる「熟成古酒」',
-    text: '日本酒もワイン同様、熟成します。数年寝かせることで色は琥珀色に、香りはナッツやドライフルーツのように変化し、中華料理やチーズとも渡り合える深みが生まれます。'
-  },
-
-  // --- B. 酒米・水・酵母 ---
-  {
-    id: 'rice_yamada',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('山田錦')),
-    icon: <Sprout size={14}/>,
-    title: '酒米の王様「山田錦」',
-    text: '粒が大きく心白（中心のデンプン）が大きいため、綺麗で雑味のない、品格のある味わいに仕上がります。「迷ったら山田錦」と言われるほどの王道です。'
-  },
+  // --- Lv.3 特有・マニアック（最優先） ---
   {
     id: 'rice_omachi',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('雄町')),
     icon: <Sprout size={14}/>,
     title: 'オマチストを魅了する「雄町」',
     text: '栽培が難しく一度は幻となったお米。優等生な山田錦に対し、野性味あふれる複雑で太い旨味が特徴。「オマチスト」と呼ばれる熱狂的なファンを持ちます。'
   },
   {
-    id: 'rice_gohyakumangoku',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('五百万石')),
-    icon: <Sprout size={14}/>,
-    title: 'スッキリ淡麗「五百万石」',
-    text: '新潟県を中心に栽培される、淡麗辛口の代名詞的なお米。スッキリと軽快で、食事の邪魔をしない綺麗なお酒になりやすいのが特徴です。'
-  },
-  {
-    id: 'rice_miyama',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('美山錦')),
-    icon: <Sprout size={14}/>,
-    title: '冷涼な地の「美山錦」',
-    text: '長野県で生まれた寒冷地に強いお米。五百万石に近いスッキリ系ですが、より硬質でキリッとした独特の渋みや酸味があり、通好みの食中酒になります。'
-  },
-  {
     id: 'rice_aiyama',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('愛山')),
     icon: <Award size={14}/>,
     title: '幻の酒米「愛山」',
     text: '「酒米のダイヤモンド」とも呼ばれる希少米。非常に溶けやすく、独特の濃厚な甘みと酸味を持つ、ジューシーで色気のあるお酒に仕上がります。'
   },
   {
-    id: 'water_hard',
-    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('灘')) || item.axisX > 65),
-    icon: <Droplets size={14}/>,
-    title: '硬水が生む「男酒」',
-    text: 'ミネラル豊富な「硬水」で仕込むと、酵母が活発になり発酵が力強く進みます。その結果、酸が効いたキリッと辛口の、いわゆる「男酒（灘の酒など）」になります。'
-  },
-  {
-    id: 'water_soft',
-    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('伏見')) || (item.axisX < 40 && item.axisY > 40)),
-    icon: <Droplets size={14}/>,
-    title: '軟水が生む「女酒」',
-    text: 'ミネラルの少ない「軟水」で仕込むと、発酵が穏やかに進みます。結果、きめ細やかで口当たりの柔らかい、優しい「女酒（京都伏見の酒など）」に仕上がります。'
-  },
-
-  // --- C. 製法・造り ---
-  {
     id: 'sake_yamahai',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('山廃')),
     icon: <Database size={14}/>,
     title: '「山廃」のワイルドさ',
@@ -125,20 +41,47 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_kimoto',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('生酛')),
     icon: <Database size={14}/>,
     title: '原点回帰「生酛（きもと）」',
     text: '山廃のさらに原型となる、江戸時代の手法。米をすり潰す重労働を経て育てた強力な酵母は、複雑味がありながらも後切れの良い、力強いお酒を生みます。'
   },
   {
+    id: 'sake_kijoshu',
+    priority: 3,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('貴醸酒')),
+    icon: <Moon size={14}/>,
+    title: 'お酒でお酒を仕込む？',
+    text: '仕込み水の代わりに「日本酒」を使って仕込む贅沢なお酒。非常に濃厚で甘美な味わいになり、デザートワインのように食後酒として楽しむのがおすすめです。'
+  },
+  {
+    id: 'sake_koshu',
+    priority: 3,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('古酒')),
+    icon: <Calendar size={14}/>,
+    title: '時が育てる「熟成古酒」',
+    text: '日本酒もワイン同様、熟成します。数年寝かせることで色は琥珀色に、香りはナッツやドライフルーツのように変化し、中華料理やチーズとも渡り合える深みが生まれます。'
+  },
+  {
     id: 'sake_origarami',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('おりがらみ')) || item.tags?.some(t => t.includes('にごり'))),
     icon: <Droplets size={14}/>,
-    title: '「おりがらみ」の二度おいしい',
+    title: '「おりがらみ」の愉しみ',
     text: '底に沈殿している白い「おり」は、米や酵母の細かい破片です。混ぜるとシルキーな口当たりと甘みがプラスされます。最初は上澄み、後半は混ぜて濃厚に。'
   },
   {
+    id: 'sake_namazake',
+    priority: 3,
+    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('生酒')) || item.tags?.some(t => t.includes('新酒'))),
+    icon: <Sparkles size={14}/>,
+    title: '火入れなしのフレッシュ感',
+    text: '通常は2回行う加熱殺菌（火入れ）を一切しない「すっぴん」のお酒。酵母が生み出した微炭酸（ガス感）や、青リンゴのようなフレッシュな香りがそのまま生きています。'
+  },
+  {
     id: 'sake_arabashiri',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('荒走り')),
     icon: <GlassWater size={14}/>,
     title: '搾り始めの「荒走り」',
@@ -146,6 +89,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_nakadori',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('中取り')),
     icon: <Award size={14}/>,
     title: '一番いい場所「中取り」',
@@ -153,15 +97,99 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_seme',
+    priority: 3,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('責め')),
     icon: <Database size={14}/>,
     title: '通好みの「責め」',
     text: '搾りの最後、圧力をかけて搾り切った部分。雑味も出ますが、その分エキス分が濃く、パンチのある味わいに。通はこの複雑味を好みます。'
   },
 
-  // --- D. 味わい・ペアリング ---
+  // --- Lv.2 分類・主要原料 ---
+  {
+    id: 'sake_daiginjo',
+    priority: 2,
+    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('大吟醸')) || item.category_rank.includes('Matsu')),
+    icon: <Sparkles size={14}/>,
+    title: '大吟醸の「50%」の意味',
+    text: 'お米を半分以上削り、中心のデンプン質だけを贅沢に使います。雑味の元になる外側を削ぎ落とし、低温で発酵させることで、果実のような華やかな香りが生まれます。'
+  },
+  {
+    id: 'sake_junmai',
+    priority: 2,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('純米')),
+    icon: <Wheat size={14}/>,
+    title: '「純米」はお米のジュース',
+    text: '醸造アルコールを一切添加せず、お米と水と麹だけで造ったお酒です。炊き立てのご飯のような穀物の香りや、お米本来のふくよかな旨味をダイレクトに感じられます。'
+  },
+  {
+    id: 'rice_yamada',
+    priority: 2,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('山田錦')),
+    icon: <Sprout size={14}/>,
+    title: '酒米の王様「山田錦」',
+    text: '粒が大きく心白（中心のデンプン）が大きいため、綺麗で雑味のない、品格のある味わいに仕上がります。「迷ったら山田錦」と言われるほどの王道です。'
+  },
+  {
+    id: 'rice_gohyakumangoku',
+    priority: 2,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('五百万石')),
+    icon: <Sprout size={14}/>,
+    title: 'スッキリ淡麗「五百万石」',
+    text: '新潟県を中心に栽培される、淡麗辛口の代名詞的なお米。スッキリと軽快で、食事の邪魔をしない綺麗なお酒になりやすいのが特徴です。'
+  },
+  {
+    id: 'rice_miyama',
+    priority: 2,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('美山錦')),
+    icon: <Sprout size={14}/>,
+    title: '冷涼な地の「美山錦」',
+    text: '長野県で生まれた寒冷地に強いお米。五百万石に近いスッキリ系ですが、より硬質でキリッとした独特の渋みや酸味があり、通好みの食中酒になります。'
+  },
+  {
+    id: 'sake_aki',
+    priority: 2,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('ひやおろし')),
+    icon: <Leaf size={14}/>,
+    title: '秋の風物詩「ひやおろし」',
+    text: '春に搾ったお酒を一度火入れし、夏の間蔵で寝かせ、秋にそのまま詰めたお酒。夏を超えて熟成が進み、角が取れてまろやかになった「秋あがり」の味わいです。'
+  },
+
+  // --- Lv.1 傾向・飲み方・製法（細部） ---
+  {
+    id: 'sake_honjozo',
+    priority: 1,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('本醸造')),
+    icon: <FlaskConical size={14}/>,
+    title: '「アル添」は技術の証',
+    text: '醸造アルコールの添加は、香り成分を引き出し、後味を軽快にする伝統技術です。本醸造はキレが良く飲み飽きしないため、実は晩酌の最強のパートナーと言われます。'
+  },
+  {
+    id: 'sake_genshu',
+    priority: 1,
+    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('原酒')),
+    icon: <Droplets size={14}/>,
+    title: '「原酒」＝ロック推奨？',
+    text: '加水調整をしていない搾ったままのお酒。アルコール度数が高く濃厚なため、氷を浮かべて「オンザロック」にすると、溶けゆく味わいの変化を楽しめます。'
+  },
+  {
+    id: 'water_hard',
+    priority: 1,
+    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('灘')) || item.axisX > 65),
+    icon: <Droplets size={14}/>,
+    title: '硬水が生む「男酒」',
+    text: 'ミネラル豊富な「硬水」で仕込むと、酵母が活発になり発酵が力強く進みます。その結果、酸が効いたキリッと辛口の、いわゆる「男酒（灘の酒など）」になります。'
+  },
+  {
+    id: 'water_soft',
+    priority: 1,
+    condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('伏見')) || (item.axisX < 40 && item.axisY > 40)),
+    icon: <Droplets size={14}/>,
+    title: '軟水が生む「女酒」',
+    text: 'ミネラルの少ない「軟水」で仕込むと、発酵が穏やかに進みます。結果、きめ細やかで口当たりの柔らかい、優しい「女酒（京都伏見の酒など）」に仕上がります。'
+  },
   {
     id: 'sake_karakuchi',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && item.axisX > 65,
     icon: <Wine size={14}/>,
     title: '日本酒度「＋」は辛口',
@@ -169,6 +197,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_acid',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('酸')) || (item.axisX < 40 && item.axisY < 40)),
     icon: <FlaskConical size={14}/>,
     title: '日本酒の「酸」は旨味の輪郭',
@@ -176,6 +205,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_pair_cheese',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('山廃')) || item.axisX < 30),
     icon: <Utensils size={14}/>,
     title: '発酵×発酵＝最強',
@@ -183,6 +213,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_pair_soba',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && item.axisX > 55 && item.axisY < 55,
     icon: <Utensils size={14}/>,
     title: '「蕎麦前」の粋',
@@ -190,6 +221,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_vessel',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && item.axisY > 60,
     icon: <GlassWater size={14}/>,
     title: 'ワイングラスの魔法',
@@ -197,6 +229,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_kan_nuru',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && item.axisX < 50 && item.axisY < 45,
     icon: <Thermometer size={14}/>,
     title: '魔法の温度「ぬる燗」',
@@ -204,20 +237,15 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_kan_atsu',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && (item.tags?.some(t => t.includes('本醸造')) || (item.axisX > 60 && item.axisY < 40)),
     icon: <Flame size={14}/>,
     title: 'キレ味鋭い「熱燗」',
     text: '50℃前後の「熱燗」にすると、香りはシャープになり、アルコールの刺激で辛さが引き立ちます。脂っこい料理の脂をスパッと切るには熱燗が一番です。'
   },
   {
-    id: 'sake_aki',
-    condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('ひやおろし')),
-    icon: <Leaf size={14}/>,
-    title: '秋の風物詩「ひやおろし」',
-    text: '春に搾ったお酒を一度火入れし、夏の間蔵で寝かせ、秋にそのまま詰めたお酒。夏を超えて熟成が進み、角が取れてまろやかになった「秋あがり」の味わいです。'
-  },
-  {
     id: 'sake_amino',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && item.axisX < 30,
     icon: <Database size={14}/>,
     title: 'アミノ酸は「コク」の正体',
@@ -225,6 +253,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'sake_label',
+    priority: 1,
     condition: (item) => item.type === 'Sake' && item.tags?.some(t => t.includes('BY')),
     icon: <Calendar size={14}/>,
     title: '「BY」って何？',
@@ -234,64 +263,10 @@ const TRIVIA_MASTER_DB = [
   // ====================
   // 🥔 焼酎 (15件)
   // ====================
-  {
-    id: 'shochu_health',
-    condition: (item) => item.type === 'Shochu',
-    icon: <Leaf size={14}/>,
-    title: '実はヘルシー？「糖質ゼロ」',
-    text: '焼酎は蒸留酒であるため、製造過程で糖分が残りません。「糖質ゼロ・プリン体ゼロ」。ダイエット中の方も心置きなく楽しめるお酒です。'
-  },
-  {
-    id: 'shochu_hot_order',
-    condition: (item) => item.type === 'Shochu' && (item.category_rank === 'Shochu_Imo' || item.axisX < 50),
-    icon: <Flame size={14}/>,
-    title: 'お湯割りの黄金律「お湯が先」',
-    text: 'お湯割りのコツは「グラスにお湯を先に入れる」こと。後から焼酎を注ぐと、対流で自然に混ざり、温度差で香りがふわっと立ち上がります。マドラー不要です。'
-  },
-  {
-    id: 'shochu_soda',
-    condition: (item) => item.type === 'Shochu' && (item.axisY < 50 || item.category_rank === 'Shochu_Mugi'),
-    icon: <GlassWater size={14}/>,
-    title: 'ソーダ割りが合う理由',
-    text: '焼酎の香りは炭酸ガスと一緒に弾けることでより華やかに感じられます。特に麦焼酎や香り高い芋焼酎は、ハイボールにすることで食中酒としてのポテンシャルが最大化します。'
-  },
-  {
-    id: 'shochu_maewari',
-    condition: (item) => item.type === 'Shochu' && item.category_rank === 'Shochu_Imo',
-    icon: <Droplets size={14}/>,
-    title: '究極のまろやかさ「前割り」',
-    text: '飲む数日前から焼酎と水を好みの割合で割って寝かせておく方法。水とアルコールが分子レベルで馴染み、カドが取れて驚くほど口当たりが優しくなります。'
-  },
-  {
-    id: 'shochu_partial',
-    condition: (item) => item.type === 'Shochu' && (item.tags?.some(t => t.includes('原酒')) || item.tags?.some(t => t.includes('40度'))),
-    icon: <Snowflake size={14}/>,
-    title: 'とろり濃厚「パーシャルショット」',
-    text: '度数の高い原酒を瓶ごと冷凍庫へ。アルコールのおかげで凍らず、とろりとしたシロップ状になります。濃厚な味と冷たさが同時に押し寄せる大人の楽しみ方です。'
-  },
-  {
-    id: 'shochu_imo_aroma',
-    condition: (item) => item.category_rank === 'Shochu_Imo',
-    icon: <Sparkles size={14}/>,
-    title: '芋の香りは「花」と同じ',
-    text: '芋焼酎の香り成分（モノテルペンアルコール）は、実はマスカットやバラの香り成分と同じ仲間。「芋臭い」ではなく「フルーティ」と感じるのは科学的に正しいのです。'
-  },
-  {
-    id: 'shochu_mugi_choco',
-    condition: (item) => item.category_rank === 'Shochu_Mugi',
-    icon: <Utensils size={14}/>,
-    title: '麦焼酎とチョコの関係',
-    text: '大麦を焙煎した香ばしさは、カカオやナッツと驚くほど合います。食後にビターチョコをかじりながら、麦焼酎のロックを流し込む。最高のデザートタイムです。'
-  },
-  {
-    id: 'shochu_rice_ginjo',
-    condition: (item) => item.type === 'Shochu' && (item.tags?.some(t => t.includes('米')) || item.name.includes('米')),
-    icon: <Wheat size={14}/>,
-    title: '米焼酎は「和製ウォッカ」',
-    text: '日本酒と同じ米が原料ですが、蒸留することで糖分が抜け、お米の甘い香りだけが純粋に抽出されます。そのクリアでスムースな飲み口は、まさに和製ウォッカやジンです。'
-  },
+  // --- Lv.3 特有（最優先） ---
   {
     id: 'shochu_kokuto',
+    priority: 3,
     condition: (item) => item.type === 'Shochu' && item.tags?.some(t => t.includes('黒糖')),
     icon: <Sun size={14}/>,
     title: '黒糖焼酎は「奄美」だけ',
@@ -299,27 +274,57 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'shochu_soba',
+    priority: 3,
     condition: (item) => item.type === 'Shochu' && item.tags?.some(t => t.includes('そば')),
     icon: <Leaf size={14}/>,
     title: 'そば焼酎と「そば湯」',
     text: 'そば独特の清涼感と香ばしさがある焼酎。これをお湯ではなく「そば湯」で割ると、とろみと風味が増して絶品です。発祥の地、宮崎県の定番スタイルです。'
   },
   {
-    id: 'shochu_distill_atm',
-    condition: (item) => item.type === 'Shochu' && !item.tags?.some(t => t.includes('減圧')),
-    icon: <FlaskConical size={14}/>,
-    title: '濃厚な「常圧蒸留」',
-    text: '昔ながらの蒸留法。高い温度で沸騰させるため、原料の複雑な香りや雑味（個性）まで一緒に抽出されます。芋や麦の個性をガツンと感じたいなら常圧です。'
+    id: 'shochu_maewari',
+    priority: 3,
+    condition: (item) => item.type === 'Shochu' && item.category_rank === 'Shochu_Imo',
+    icon: <Droplets size={14}/>,
+    title: '究極のまろやかさ「前割り」',
+    text: '飲む数日前から焼酎と水を好みの割合で割って寝かせておく方法。水とアルコールが分子レベルで馴染み、カドが取れて驚くほど口当たりが優しくなります。'
   },
   {
-    id: 'shochu_distill_vac',
-    condition: (item) => item.type === 'Shochu' && item.tags?.some(t => t.includes('減圧')),
-    icon: <FlaskConical size={14}/>,
-    title: 'クリアな「減圧蒸留」',
-    text: '気圧を下げて低い温度（40-50℃）で沸騰させる方法。雑味が出にくく、華やかでクセのないクリアな味わいになります。焼酎初心者にもおすすめです。'
+    id: 'shochu_partial',
+    priority: 3,
+    condition: (item) => item.type === 'Shochu' && (item.tags?.some(t => t.includes('原酒')) || item.tags?.some(t => t.includes('40度'))),
+    icon: <Snowflake size={14}/>,
+    title: 'とろり濃厚「パーシャルショット」',
+    text: '度数の高い原酒を瓶ごと冷凍庫へ。アルコールのおかげで凍らず、とろりとしたシロップ状になります。濃厚な味と冷たさが同時に押し寄せる大人の楽しみ方です。'
+  },
+
+  // --- Lv.2 原料・主要ジャンル ---
+  {
+    id: 'shochu_imo_aroma',
+    priority: 2,
+    condition: (item) => item.category_rank === 'Shochu_Imo',
+    icon: <Sparkles size={14}/>,
+    title: '芋の香りは「花」と同じ',
+    text: '芋焼酎の香り成分（モノテルペンアルコール）は、実はマスカットやバラの香り成分と同じ仲間。「芋臭い」ではなく「フルーティ」と感じるのは科学的に正しいのです。'
+  },
+  {
+    id: 'shochu_mugi_choco',
+    priority: 2,
+    condition: (item) => item.category_rank === 'Shochu_Mugi',
+    icon: <Utensils size={14}/>,
+    title: '麦焼酎とチョコの関係',
+    text: '大麦を原料とする麦焼酎の香ばしさは、焙煎したカカオやナッツと驚くほど合います。食後にビターチョコレートをかじりながら、麦焼酎のロックを流し込む。知る人ぞ知る大人のデザートタイムです。'
+  },
+  {
+    id: 'shochu_rice_ginjo',
+    priority: 2,
+    condition: (item) => item.type === 'Shochu' && (item.tags?.some(t => t.includes('米')) || item.name.includes('米')),
+    icon: <Wheat size={14}/>,
+    title: '米焼酎は「和製ウォッカ」',
+    text: '日本酒と同じ米が原料ですが、蒸留することで糖分が抜け、お米の甘い香りだけが純粋に抽出されます。そのクリアでスムースな飲み口は、まさに和製ウォッカやジンです。'
   },
   {
     id: 'shochu_koji_black',
+    priority: 2,
     condition: (item) => item.type === 'Shochu' && item.tags?.some(t => t.includes('黒麹')),
     icon: <Database size={14}/>,
     title: 'どっしり「黒麹」',
@@ -327,13 +332,65 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'shochu_koji_white',
+    priority: 2,
     condition: (item) => item.type === 'Shochu' && (item.category_rank === 'Shochu_Imo' && !item.tags?.some(t => t.includes('黒麹'))),
     icon: <Database size={14}/>,
     title: 'マイルド「白麹」',
     text: '黒麹から突然変異で生まれた菌。黒麹よりも優しく、マイルドで軽快な味わいに仕上がります。どんな料理にも合わせやすい優等生です。'
   },
+
+  // --- Lv.1 飲み方・一般知識 ---
+  {
+    id: 'shochu_hot_order',
+    priority: 1,
+    condition: (item) => item.type === 'Shochu' && (item.category_rank === 'Shochu_Imo' || item.axisX < 50),
+    icon: <Flame size={14}/>,
+    title: 'お湯割りの黄金律「お湯が先」',
+    text: 'お湯割りのコツは「グラスにお湯を先に入れる」こと。後から焼酎を注ぐと、対流で自然に混ざり、温度差で香りがふわっと立ち上がります。マドラー不要です。'
+  },
+  {
+    id: 'shochu_soda',
+    priority: 1,
+    condition: (item) => item.type === 'Shochu' && (item.axisY < 50 || item.category_rank === 'Shochu_Mugi'),
+    icon: <GlassWater size={14}/>,
+    title: 'ソーダ割りが合う理由',
+    text: '焼酎の香りは炭酸ガスと一緒に弾けることでより華やかに感じられます。特に麦焼酎や香り高い芋焼酎は、ハイボールにすることで食中酒としてのポテンシャルが最大化します。'
+  },
+  {
+    id: 'shochu_rock',
+    priority: 1,
+    condition: (item) => item.type === 'Shochu' && item.axisX < 50,
+    icon: <Database size={14}/>,
+    title: 'ロックで味わう「時間」',
+    text: 'ロックの醍醐味は、氷が溶けることによる「加水」の変化。最初はガツンと濃厚に、徐々に水と馴染んでまろやかに。一杯で二度も三度も美味しい飲み方です。'
+  },
+  {
+    id: 'shochu_distill_atm',
+    priority: 1,
+    condition: (item) => item.type === 'Shochu' && !item.tags?.some(t => t.includes('減圧')),
+    icon: <FlaskConical size={14}/>,
+    title: '濃厚な「常圧蒸留」',
+    text: '昔ながらの蒸留法。高い温度で沸騰させるため、原料の複雑な香りや雑味（個性）まで一緒に抽出されます。芋や麦の個性をガツンと感じたいなら常圧です。'
+  },
+  {
+    id: 'shochu_distill_vac',
+    priority: 1,
+    condition: (item) => item.type === 'Shochu' && item.tags?.some(t => t.includes('減圧')),
+    icon: <FlaskConical size={14}/>,
+    title: 'クリアな「減圧蒸留」',
+    text: '気圧を下げて低い温度（40-50℃）で沸騰させる方法。雑味が出にくく、華やかでクセのないクリアな味わいになります。焼酎初心者にもおすすめです。'
+  },
+  {
+    id: 'shochu_health',
+    priority: 1,
+    condition: (item) => item.type === 'Shochu',
+    icon: <Leaf size={14}/>,
+    title: '実はヘルシー？「糖質ゼロ」',
+    text: '焼酎は蒸留酒であるため、製造過程で糖分が残りません。「糖質ゼロ・プリン体ゼロ」。ダイエット中の方も心置きなく楽しめるお酒です。'
+  },
   {
     id: 'shochu_dareyame',
+    priority: 1,
     condition: (item) => item.type === 'Shochu', // 全焼酎
     icon: <Wine size={14}/>,
     title: '南九州の文化「だれやめ」',
@@ -343,15 +400,26 @@ const TRIVIA_MASTER_DB = [
   // ====================
   // 🌟 汎用 (5件)
   // ====================
+  // --- Lv.0 最も一般的（他に出るものが少ない時に表示） ---
+  {
+    id: 'liqueur_base',
+    priority: 3, // 果実酒にとっては重要なのでLv3
+    condition: (item) => item.type === 'Liqueur',
+    icon: <GlassWater size={14}/>,
+    title: 'ベースのお酒で味が変わる',
+    text: '果実酒は「何のお酒に漬けたか」が重要です。ホワイトリカーなら果実の香りがストレートに、日本酒ベースならまろやかに、ブランデーベースなら濃厚な仕上がりになります。'
+  },
   {
     id: 'general_water',
-    condition: (item) => true,
+    priority: 0,
+    condition: (item) => true, // 全商品対象
     icon: <GlassWater size={14}/>,
     title: '和らぎ水（やわらぎみず）',
     text: 'お酒を飲む際は、同量の水を飲むのがマナーであり健康の秘訣。アルコール濃度を下げ、口の中をリセットし、次の一杯をより美味しく感じさせてくれます。'
   },
   {
     id: 'general_light',
+    priority: 0,
     condition: (item) => true,
     icon: <Sun size={14}/>,
     title: 'お酒は「日光」が苦手',
@@ -359,6 +427,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'general_air',
+    priority: 0,
     condition: (item) => true,
     icon: <GlassWater size={14}/>,
     title: '開栓後の味の変化',
@@ -366,6 +435,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'general_store',
+    priority: 0,
     condition: (item) => item.type === 'Sake',
     icon: <Thermometer size={14}/>,
     title: '冷蔵庫には「縦置き」で',
@@ -373,6 +443,7 @@ const TRIVIA_MASTER_DB = [
   },
   {
     id: 'general_date',
+    priority: 0,
     condition: (item) => true,
     icon: <Calendar size={14} />,
     title: '製造年月≠賞味期限',
@@ -380,9 +451,15 @@ const TRIVIA_MASTER_DB = [
   }
 ];
 
-// 商品ごとのコラム抽出ロジック（最大3つ）
+// 商品ごとのコラム抽出ロジック（最大3つ、優先度順）
 const getTriviaList = (item) => {
+  // 条件に合うものを全て抽出
   const matches = TRIVIA_MASTER_DB.filter(trivia => trivia.condition(item));
+  
+  // ★優先度(priority)が高い順にソート
+  matches.sort((a, b) => b.priority - a.priority);
+
+  // 上位3つを返す
   return matches.slice(0, 3);
 };
 
@@ -535,30 +612,34 @@ const MapView = ({ data, cloudImages, onSelect }) => {
     </div>
   );
 };
+
 // ==========================================
 // 3. Main Views & Application Container
 // ==========================================
 
+// ★ タグ入力支援用定数
+const TAG_SUGGESTIONS = {
+  '原料・米': ['山田錦', '雄町', '五百万石', '美山錦', '愛山'],
+  'スペック': ['大吟醸', '純米', '本醸造', '原酒', '生酒', '新酒', '古酒', '貴醸酒'],
+  '製法詳細': ['山廃', '生酛', 'おりがらみ', '荒走り', '中取り', '責め', 'ひやおろし'],
+  '焼酎・他': ['芋', '麦', '米', '黒糖', 'そば', '黒麹', '白麹', '減圧', '常圧'],
+  '味わい': ['辛口', '甘口', '酸', 'BY']
+};
+
 const MenuView = ({ data, onSelect, cloudImages, placeholder, onAdd, isSommelierMode, activeTab }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
-  // ★ フィルタリングとソート（並び替え）ロジック
   const filteredData = useMemo(() => {
-    // 1. テキスト検索で絞り込み
     const searched = data.filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()) || item.kana.includes(searchTerm) || item.tags.some(tag => tag.includes(searchTerm)));
-    
-    // 2. タブごとの特別な並び替え
     if (activeTab === 'shochu') {
-      // 焼酎タブの場合: まず「Shochu」タイプを表示し、その後に「その他（Liqueurなど）」を表示
       return searched.sort((a, b) => {
         const isAShochu = a.type === 'Shochu';
         const isBShochu = b.type === 'Shochu';
-        if (isAShochu && !isBShochu) return -1; // aが焼酎なら上
-        if (!isAShochu && isBShochu) return 1;  // bが焼酎なら上
-        return 0; // 同じならそのまま
+        if (isAShochu && !isBShochu) return -1;
+        if (!isAShochu && isBShochu) return 1;
+        return 0;
       });
     }
-    
     return searched;
   }, [data, searchTerm, activeTab]);
 
@@ -618,7 +699,14 @@ export default function SakeManagerApp() {
   const [isUploading, setIsUploading] = useState(false);
   const [sakeList, setSakeList] = useState([]);
   const [isSommelierMode, setIsSommelierMode] = useState(false);
-  const fileInputRef = useRef(null);
+  
+  // Ref
+  const fileInputRef = useRef(null); 
+  const specInputRef = useRef(null); 
+
+  // ★ 新機能: JSON一括取込用のState
+  const [jsonInput, setJsonInput] = useState('');
+  const [showJsonInput, setShowJsonInput] = useState(false);
 
   useEffect(() => {
     if (!db) return;
@@ -632,11 +720,53 @@ export default function SakeManagerApp() {
   }, []);
 
   const handleAddNew = () => {
-    const newItem = { id: '', name: '', kana: '', category_rank: 'Take', type: 'Sake', price_cost: 0, capacity_ml: 1800, tags: [], sales_talk: '', pairing_hint: '', stock_level: 100, stock_bottles: 0, order_history: [], axisX: 50, axisY: 50 };
-    setEditForm(newItem); setIsEditMode(true); setModalItem(newItem);
+    const newItem = { id: '', name: '', kana: '', category_rank: 'Take', type: 'Sake', price_cost: 0, capacity_ml: 1800, tags: [], sales_talk: '', pairing_hint: '', source_text: '', spec_image: '', stock_level: 100, stock_bottles: 0, order_history: [], axisX: 50, axisY: 50 };
+    setEditForm(newItem); setIsEditMode(true); setModalItem(newItem); setJsonInput(''); setShowJsonInput(false);
   };
-  const handleOpenDetail = (item) => { setEditForm(item); setIsEditMode(false); setModalItem(item); };
+  const handleOpenDetail = (item) => { setEditForm(item); setIsEditMode(false); setModalItem(item); setJsonInput(''); setShowJsonInput(false); };
   const startEdit = () => { setEditForm({ ...modalItem }); setIsEditMode(true); };
+  
+  const toggleTag = (tag) => {
+    const currentTags = editForm.tags || [];
+    if (currentTags.includes(tag)) {
+      setEditForm({ ...editForm, tags: currentTags.filter(t => t !== tag) });
+    } else {
+      setEditForm({ ...editForm, tags: [...currentTags, tag] });
+    }
+  };
+
+  // ★ AI生成JSONのパース処理（一括入力）
+  const handleJsonImport = () => {
+    try {
+      // 入力されたJSONテキストをパース
+      // 前後の余計な文字（```json ... ```など）を削除して解析
+      const cleanJson = jsonInput.replace(/```json/g, '').replace(/```/g, '').trim();
+      const data = JSON.parse(cleanJson);
+
+      setEditForm(prev => ({
+        ...prev,
+        name: data.name || prev.name,
+        kana: data.kana || prev.kana,
+        type: data.type || prev.type,
+        category_rank: data.category_rank || prev.category_rank,
+        price_cost: Number(data.price_cost) || prev.price_cost,
+        capacity_ml: Number(data.capacity_ml) || prev.capacity_ml,
+        sales_talk: data.sales_talk || prev.sales_talk,
+        pairing_hint: data.pairing_hint || prev.pairing_hint,
+        tags: data.tags || prev.tags,
+        axisX: Number(data.axisX) || prev.axisX,
+        axisY: Number(data.axisY) || prev.axisY,
+        source_text: data.source_text || prev.source_text
+      }));
+      
+      alert("AIデータの取り込みに成功しました！");
+      setShowJsonInput(false);
+    } catch (e) {
+      alert("データの形式が正しくありません。\nNotebookLMの出力をそのまま貼り付けてください。");
+      console.error(e);
+    }
+  };
+
   const handleSave = async () => {
     if (!editForm.name) return alert("商品名は必須です");
     try {
@@ -649,16 +779,22 @@ export default function SakeManagerApp() {
     if (!confirm("本当にこの商品を削除しますか？")) return;
     try { await deleteDoc(doc(db, "sakeList", modalItem.id)); alert("削除しました"); setModalItem(null); } catch (e) { alert("削除エラー: " + e.message); }
   };
-  const handleFileUpload = async (event) => {
+  const handleFileUpload = async (event, type = 'main') => {
     const file = event.target.files[0];
     if (!file || !modalItem.id) { if(!modalItem.id) alert("先に商品を保存してください"); return; }
     try {
       setIsUploading(true);
-      const storageRef = ref(storage, `images/${modalItem.id}_${Date.now()}.jpg`);
+      const fileName = type === 'main' ? `${modalItem.id}_main.jpg` : `${modalItem.id}_spec.jpg`;
+      const storageRef = ref(storage, `images/${fileName}`);
       await uploadBytes(storageRef, file);
       const downloadURL = await getDownloadURL(storageRef);
-      await setDoc(doc(db, "sakeImages", "main"), { [modalItem.id]: downloadURL }, { merge: true });
-      alert("画像保存完了！");
+      if (type === 'main') {
+        await setDoc(doc(db, "sakeImages", "main"), { [modalItem.id]: downloadURL }, { merge: true });
+        setCloudImages(prev => ({ ...prev, [modalItem.id]: downloadURL }));
+      } else {
+        setEditForm(prev => ({ ...prev, spec_image: downloadURL }));
+        alert("スペック画像を読み込みました。「保存」を押して確定してください。");
+      }
     } catch (error) { alert("アップロード失敗"); } finally { setIsUploading(false); }
   };
 
@@ -691,7 +827,7 @@ export default function SakeManagerApp() {
                    {isUploading && <div className="absolute inset-0 flex items-center justify-center bg-black/30"><Loader className="animate-spin text-white" size={32} /></div>}
                  </div>
                ) : ( <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400 text-sm">※画像は保存後に変更可能</div> )}
-               <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+               <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={(e) => handleFileUpload(e, 'main')} />
                <button onClick={() => setModalItem(null)} className="absolute top-2 right-2 bg-black/50 text-white p-1 rounded-full z-10 hover:bg-black/70"><X size={20}/></button>
             </div>
             
@@ -702,18 +838,12 @@ export default function SakeManagerApp() {
                   <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500 mb-4"><p className="text-blue-900 font-medium text-sm leading-relaxed">"{modalItem.sales_talk}"</p></div>
                   {modalItem.pairing_hint && (<div className="flex items-start gap-3 bg-orange-50 p-3 rounded-lg border border-orange-100 mb-6"><Utensils className="text-orange-500 mt-0.5" size={18} /><div><span className="block text-xs font-bold text-orange-800 mb-0.5">おすすめペアリング</span><p className="text-sm text-orange-900">{modalItem.pairing_hint}</p></div></div>)}
                   
-                  {/* ★ コラム（Sake Trivia） */}
                   {triviaList.length > 0 && (
                     <div className="mb-6 space-y-3">
-                      <div className="flex items-center gap-2 text-gray-800 font-bold text-xs uppercase tracking-wider">
-                        <BookOpen size={14} className="text-gray-500"/> 豆知識 (Trivia)
-                      </div>
+                      <div className="flex items-center gap-2 text-gray-800 font-bold text-xs uppercase tracking-wider"><BookOpen size={14} className="text-gray-500"/> 豆知識 (Trivia)</div>
                       {triviaList.map((trivia, index) => (
                         <div key={trivia.id || index} className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-xl border border-gray-200 relative overflow-hidden">
-                           <div className="flex items-center gap-2 mb-1">
-                             <span className="text-gray-500">{trivia.icon}</span>
-                             <h4 className="font-bold text-xs text-gray-800">{trivia.title}</h4>
-                           </div>
+                           <div className="flex items-center gap-2 mb-1"><span className="text-gray-500">{trivia.icon}</span><h4 className="font-bold text-xs text-gray-800">{trivia.title}</h4></div>
                            <p className="text-xs text-gray-600 leading-relaxed pl-6">{trivia.text}</p>
                         </div>
                       ))}
@@ -734,18 +864,80 @@ export default function SakeManagerApp() {
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm border-t pt-4"><div><span className="block text-gray-400 text-xs">Capacity</span><span className="font-bold">{modalItem.capacity_ml}ml</span></div><div><span className="block text-gray-400 text-xs">Cost</span><span className="font-bold">¥{modalItem.price_cost.toLocaleString()}</span></div></div>
+                      
+                      {(modalItem.source_text || modalItem.spec_image) && (
+                        <div className="mt-4 p-3 bg-gray-100 rounded text-xs text-gray-600">
+                          <p className="font-bold mb-1">Source Info:</p>
+                          {modalItem.spec_image && <a href={modalItem.spec_image} target="_blank" rel="noreferrer" className="text-blue-600 underline block mb-1">スペック画像を確認</a>}
+                          {modalItem.source_text && <p className="truncate opacity-50">{modalItem.source_text}</p>}
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
               ) : (
                 <div className="space-y-4">
+                  {/* ★ AI一括取込ボタンエリア */}
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-xs font-bold text-gray-500">商品編集</label>
+                    <button onClick={() => setShowJsonInput(!showJsonInput)} className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-md hover:opacity-90 flex items-center gap-1 animate-pulse">
+                      <Sparkles size={12}/> NotebookLMから一括入力
+                    </button>
+                  </div>
+
+                  {/* AIデータ入力エリア（表示時のみ） */}
+                  {showJsonInput && (
+                    <div className="bg-purple-50 p-3 rounded-lg border border-purple-200 mb-4 animate-in slide-in-from-top-2">
+                      <p className="text-[10px] text-purple-800 mb-1 font-bold">NotebookLMの出力を貼り付けて「取込」を押してください</p>
+                      <textarea 
+                        className="w-full border border-purple-200 rounded p-2 text-xs h-24 mb-2 bg-white" 
+                        placeholder={'例: {"name": "獺祭", "tags": ["純米大吟醸", "山田錦"] ... }'}
+                        value={jsonInput}
+                        onChange={e => setJsonInput(e.target.value)}
+                      />
+                      <button onClick={handleJsonImport} className="w-full bg-purple-600 text-white py-2 rounded font-bold text-xs shadow hover:bg-purple-700">データを反映する</button>
+                    </div>
+                  )}
+
                   <div><label className="text-xs font-bold text-gray-500">商品名</label><input className="w-full border p-2 rounded" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} /></div>
                   <div><label className="text-xs font-bold text-gray-500">ふりがな</label><input className="w-full border p-2 rounded" value={editForm.kana} onChange={e => setEditForm({...editForm, kana: e.target.value})} /></div>
+                  
+                  {/* スペック画像など */}
+                  <div className="bg-gray-50 p-3 rounded border border-gray-100">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-gray-500">スペック画像</span>
+                      <div className="flex items-center gap-2">
+                        {editForm.spec_image && <span className="text-[10px] text-green-600">登録済</span>}
+                        <input type="file" accept="image/*" ref={specInputRef} className="hidden" onChange={(e) => handleFileUpload(e, 'spec')} />
+                        <button onClick={() => specInputRef.current?.click()} className="text-[10px] bg-white border border-gray-300 text-gray-600 px-2 py-1 rounded flex items-center gap-1 hover:bg-gray-100"><Upload size={10}/> アップロード</button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">種別</label><select className="w-full border p-2 rounded" value={editForm.type} onChange={e => setEditForm({...editForm, type: e.target.value})}><option value="Sake">日本酒</option><option value="Shochu">焼酎</option><option value="Liqueur">リキュール</option></select></div><div><label className="text-xs font-bold text-gray-500">ランク</label><select className="w-full border p-2 rounded" value={editForm.category_rank} onChange={e => setEditForm({...editForm, category_rank: e.target.value})}><option value="Matsu">松</option><option value="Take">竹</option><option value="Ume">梅</option><option value="Shochu_Imo">芋焼酎</option><option value="Shochu_Mugi">麦焼酎</option></select></div></div>
                   <div className="grid grid-cols-2 gap-2"><div><label className="text-xs font-bold text-gray-500">仕入価格</label><input type="number" className="w-full border p-2 rounded" value={editForm.price_cost} onChange={e => setEditForm({...editForm, price_cost: Number(e.target.value)})} /></div><div><label className="text-xs font-bold text-gray-500">容量(ml)</label><input type="number" className="w-full border p-2 rounded" value={editForm.capacity_ml} onChange={e => setEditForm({...editForm, capacity_ml: Number(e.target.value)})} /></div></div>
                   <div><label className="text-xs font-bold text-gray-500">セールストーク</label><textarea className="w-full border p-2 rounded h-20" value={editForm.sales_talk} onChange={e => setEditForm({...editForm, sales_talk: e.target.value})} /></div>
                   <div><label className="text-xs font-bold text-gray-500">ペアリング</label><input className="w-full border p-2 rounded" value={editForm.pairing_hint} onChange={e => setEditForm({...editForm, pairing_hint: e.target.value})} /></div>
-                  <div><label className="text-xs font-bold text-gray-500">タグ (カンマ区切り)</label><input className="w-full border p-2 rounded" value={editForm.tags?.join(',')} onChange={e => setEditForm({...editForm, tags: e.target.value.split(',')})} /></div>
+                  
+                  {/* タグ選択パレット */}
+                  <div>
+                    <label className="text-xs font-bold text-gray-500">タグ (カンマ区切り)</label>
+                    <input className="w-full border p-2 rounded mb-2" value={editForm.tags?.join(',')} onChange={e => setEditForm({...editForm, tags: e.target.value.split(',')})} placeholder="手入力も可" />
+                    <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                      {Object.entries(TAG_SUGGESTIONS).map(([category, tags]) => (
+                        <div key={category} className="mb-2 last:mb-0">
+                          <span className="text-[10px] text-gray-500 block mb-1">{category}</span>
+                          <div className="flex flex-wrap gap-1">
+                            {tags.map(tag => {
+                              const isSelected = editForm.tags?.includes(tag);
+                              return ( <button key={tag} onClick={() => toggleTag(tag)} className={`text-[10px] px-2 py-1 rounded border transition-colors ${isSelected ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'}`}>{tag}</button> );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="bg-gray-50 p-3 rounded"><p className="text-xs font-bold mb-2">マップ位置調整</p><div className="flex gap-2 text-xs items-center mb-2"><span>甘</span><input type="range" className="flex-grow" value={editForm.axisX || 50} onChange={e => setEditForm({...editForm, axisX: Number(e.target.value)})} /><span>辛</span></div><div className="flex gap-2 text-xs items-center"><span>穏</span><input type="range" className="flex-grow" value={editForm.axisY || 50} onChange={e => setEditForm({...editForm, axisY: Number(e.target.value)})} /><span>華</span></div></div>
                   <div className="flex gap-2 pt-4 border-t">{modalItem.id && <button onClick={handleDelete} className="flex-1 bg-red-100 text-red-600 py-3 rounded-lg font-bold flex items-center justify-center gap-2"><Trash2 size={18}/> 削除</button>}<button onClick={handleSave} className="flex-[2] bg-blue-600 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2"><Save size={18}/> 保存</button></div>
                 </div>
